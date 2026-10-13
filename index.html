@@ -980,11 +980,12 @@ function modelo(){
     var d=new Date(v.a); if(d.getUTCFullYear()!==y||d.getUTCMonth()!==m) return;
     delMes++;
     var s=map.get(v.key);
-    if(!s){s={nombre:v.nombre,dni:v.dni,vis:0,seg:0,sem:semanas.map(function(){return {v:0,s:0};})};map.set(v.key,s);}
-    var w=Math.floor((d.getUTCDate()-1+fw)/7), dur=(v.b-v.a)/1000;
-    s.vis++; s.seg+=dur; s.sem[w].v++; s.sem[w].s+=dur;
+    if(!s){s={nombre:v.nombre,dni:v.dni,vis:0,seg:0,dias:new Map(),sem:semanas.map(function(){return {v:0,s:0};})};map.set(v.key,s);}
+    var dia=d.getUTCDate(); s.dias.set(dia,(s.dias.get(dia)||0)+(v.b-v.a)/1000);
     if(!s.dni&&v.dni) s.dni=v.dni;
   });
+  /* una visita por supervisor y por día: varios ingresos del mismo día cuentan como 1, con la suma de sus tiempos */
+  map.forEach(function(s){ s.dias.forEach(function(dur,dia){ var w=Math.floor((dia-1+fw)/7); s.vis++; s.seg+=dur; s.sem[w].v++; s.sem[w].s+=dur; }); });
   var filas=Array.from(map.values()).sort(function(a,b){return a.nombre.localeCompare(b.nombre,'es');});
   var tot={vis:0,seg:0,sem:semanas.map(function(){return {v:0,s:0};})};
   filas.forEach(function(s){tot.vis+=s.vis;tot.seg+=s.seg;s.sem.forEach(function(x,i){tot.sem[i].v+=x.v;tot.sem[i].s+=x.s;});});
@@ -995,7 +996,7 @@ function cnt(v){return v?String(v):'-';}
 
 function renderResumen(){
   var M=modelo();
-  $('lead-3').textContent='Cantidad de visitas por supervisor, '+MESES[M.m].toLowerCase()+' '+M.y+'. Cada visita se cuenta en el mes y en la semana de su entrada, con su tiempo de permanencia completo.';
+  $('lead-3').textContent='Cantidad de visitas por supervisor, '+MESES[M.m].toLowerCase()+' '+M.y+'. Cada supervisor cuenta una sola visita por día, aunque haya ingresado varias veces, y su tiempo es la suma de todos sus ingresos de ese día.';
   if(!M.filas.length){ $('resumen').innerHTML='<div class="aviso atencion">No hay visitas con entrada en '+MESES[M.m].toLowerCase()+' '+M.y+'.</div>'; return; }
   var f1=M.filas.map(function(s){return '<tr><td class="izq">'+esc(s.nombre)+'</td><td>'+esc(s.dni||'-')+'</td><td>'+s.vis+'</td><td>'+fmt(s.seg)+'</td><td>'+prom(s.seg,s.vis)+'</td></tr>';}).join('');
   var p1='<tr><td class="izq" colspan="2">Total del mes</td><td>'+M.tot.vis+'</td><td>'+fmt(M.tot.seg)+'</td><td>'+prom(M.tot.seg,M.tot.vis)+'</td></tr>';
@@ -1009,14 +1010,14 @@ function renderResumen(){
     '<div class="scroll"><table class="tabla"><thead><tr><th class="izq">Supervisor</th><th>DNI</th><th>Cantidad de visitas</th><th>Tiempo total de visita</th><th>Tiempo promedio por visita</th></tr></thead><tbody>'+f1+'</tbody><tfoot>'+p1+'</tfoot></table></div>'+
     '<h3 class="subtitulo">Resumen semanal (de lunes a domingo)</h3>'+
     '<div class="scroll"><table class="tabla"><thead><tr><th class="izq" rowspan="2">Supervisor</th>'+h1.slice(4)+h2+'</thead><tbody>'+f2+'</tbody><tfoot>'+p2+'</tfoot></table></div>'+
-    '<p class="control">Control: se cargaron '+M.cargadas+(M.cargadas===1?' visita':' visitas')+' y '+M.delMes+(M.delMes===1?' tiene':' tienen')+' la entrada en este mes'+(otros?' (las otras '+otros+' son de otros meses)':'')+'. La primera y la última semana pueden quedar incompletas.</p>';
+    '<p class="control">Control: se cargaron '+M.cargadas+(M.cargadas===1?' ingreso':' ingresos')+'; '+M.delMes+(M.delMes===1?' tiene':' tienen')+' la entrada en este mes'+(otros?' (los otros '+otros+' son de otros meses)':'')+' y equivalen a '+M.tot.vis+(M.tot.vis===1?' visita':' visitas')+'. Varios ingresos del mismo supervisor en un día cuentan como una sola visita. La primera y la última semana pueden quedar incompletas.</p>';
 }
 function preview(){
   var n=S.visitas.length;
   var filas=S.visitas.slice(0,500).map(function(v){
     return '<tr><td>'+v.n+'</td><td>'+fmtFechaHora(v.a)+'</td><td>'+fmtFechaHora(v.b)+'</td><td class="izq">'+esc(v.nombre)+'</td><td>'+esc(v.dni||'-')+'</td><td>'+fmt((v.b-v.a)/1000)+'</td></tr>';
   }).join('');
-  return '<div class="scroll alto"><table class="tabla"><thead><tr><th>Fila</th><th>Entrada</th><th>Salida</th><th class="izq">Supervisor</th><th>DNI</th><th>Tiempo de visita</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+(n>500?'<p class="control">Se muestran las primeras 500 visitas. Todas se usan en el cálculo.</p>':'');
+  return '<div class="scroll alto"><table class="tabla"><thead><tr><th>Fila</th><th>Entrada</th><th>Salida</th><th class="izq">Supervisor</th><th>DNI</th><th>Tiempo del ingreso</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+(n>500?'<p class="control">Se muestran los primeros 500 ingresos. Todos se usan en el cálculo.</p>':'');
 }
 function avisosCarga(){
   if(S.total>0&&S.visitas.length===0) return ['<div class="aviso atencion">Para esta variable hace falta pegar también el supervisor (visitante) y el DNI, en la tercera y cuarta columna.</div>'];
@@ -1078,11 +1079,11 @@ return {
   etiquetaPegado:'Fecha de entrada, fecha de salida, supervisor y DNI',
   placeholder:'23/09/2026 14:10:22\t23/09/2026 14:36:51\tAPELLIDO, NOMBRE\t12345678',
   botonResumen:'Ver visitas por supervisor',
-  etiqueta:['visita válida','visitas válidas'], palabraOtros:'visitas',
-  mensajeVacio:'No se encontraron visitas. Revisá que estés pegando fecha de entrada, fecha de salida, supervisor y DNI.',
-  ayudaHtml:function(){return 'Se cuentan las visitas cuya entrada cae en el mes elegido, junto con el tiempo de permanencia de cada una. Las semanas van de lunes a domingo, así que la primera y la última pueden quedar incompletas.';},
+  etiqueta:['ingreso válido','ingresos válidos'], palabraOtros:'ingresos',
+  mensajeVacio:'No se encontraron ingresos. Revisá que estés pegando fecha de entrada, fecha de salida, supervisor y DNI.',
+  ayudaHtml:function(){return 'Cada supervisor cuenta una sola visita por día: si ingresa varias veces el mismo día, es una visita y su tiempo es la suma de todos sus ingresos de ese día. Se cuentan los días cuya entrada cae en el mes elegido. Las semanas van de lunes a domingo, así que la primera y la última pueden quedar incompletas.';},
   procesar:procesarFilas, n:function(){return S.visitas.length;}, hayDatos:function(){return S.visitas.length>0;},
-  estadoTxt:function(){var n=S.visitas.length;return n===0?'sin visitas cargadas.':n+(n===1?' visita cargada.':' visitas cargadas.');},
+  estadoTxt:function(){var n=S.visitas.length;return n===0?'sin ingresos cargados.':n+(n===1?' ingreso cargado.':' ingresos cargados.');},
   mesesConDatos:mesesConDatos, avisosCarga:avisosCarga, preview:preview,
   renderResumen:renderResumen, renderCalendario:null,
   secciones:[{id:'resumen',label:'Resumen mensual y semanal (solapa 3)'}],
@@ -1102,6 +1103,7 @@ var FRA=(function(){
 var NOMBRE='Cantidad de visitas por franja horaria';
 var FRANJAS=['06:00 - 14:00 hs.','14:00 - 22:00 hs.','22:00 - 06:00 hs.'];
 var S={visitas:[],total:0,thr:2,sup:''};
+var NOTA_TOTAL='El total del día cuenta a cada supervisor una sola vez; si estuvo en dos franjas el mismo día, figura en ambas franjas.';
 
 function franjaDe(ms){var h=new Date(ms).getUTCHours();return h>=6&&h<14?0:(h>=14&&h<22?1:2);}
 function procesarFilas(filas){
@@ -1125,16 +1127,18 @@ function supervisores(){
 }
 function nombreSup(){var r=supervisores().filter(function(x){return x[0]===S.sup;})[0];return r?r[1]:'';}
 function modelo(){
-  var y=state.year, m=state.month, n=new Date(Date.UTC(y,m+1,0)).getUTCDate(), rows=[], tot=[0,0,0], delMes=0, filtradas=0;
-  for(var d=1;d<=n;d++) rows.push({d:d,wd:(new Date(Date.UTC(y,m,d)).getUTCDay()+6)%7,f:[0,0,0],total:0});
+  var y=state.year, m=state.month, n=new Date(Date.UTC(y,m+1,0)).getUTCDate(), rows=[], tot=[0,0,0], totalMes=0, delMes=0, filtradas=0, sets=[];
+  for(var d=1;d<=n;d++){ rows.push({d:d,wd:(new Date(Date.UTC(y,m,d)).getUTCDay()+6)%7,f:[0,0,0],total:0}); sets.push({s:new Set(),f:[new Set(),new Set(),new Set()]}); }
   S.visitas.forEach(function(v){
     var dt=new Date(v.a); if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==m) return;
     delMes++;
     if(S.sup&&v.key!==S.sup) return;
     filtradas++;
-    var r=rows[dt.getUTCDate()-1], k=franjaDe(v.a); r.f[k]++; r.total++; tot[k]++;
+    var q=sets[dt.getUTCDate()-1], k=franjaDe(v.a); q.s.add(v.key); q.f[k].add(v.key);
   });
-  return {y:y,m:m,n:n,rows:rows,tot:tot,total:tot[0]+tot[1]+tot[2],delMes:delMes,contadas:filtradas,cargadas:S.visitas.length};
+  /* un supervisor cuenta una vez por día (total del día) y una vez por franja: varios ingresos en la misma franja del mismo día son 1 */
+  rows.forEach(function(r,i){ var q=sets[i]; r.total=q.s.size; for(var k=0;k<3;k++){r.f[k]=q.f[k].size;tot[k]+=r.f[k];} totalMes+=r.total; });
+  return {y:y,m:m,n:n,rows:rows,tot:tot,total:totalMes,delMes:delMes,contadas:filtradas,cargadas:S.visitas.length};
 }
 function semanas(M){
   var weeks=[], cur=new Array(7).fill(null);
@@ -1154,7 +1158,7 @@ function selectorHtml(){
 }
 function ayudaHtml(){
   var n=S.thr;
-  return 'En el calendario, cada franja se pinta de rojo si no hubo visitas, '+(n>1?'de amarillo si hubo '+(n===2?'una sola visita':'menos de '+n+' visitas')+' y ':'')+'de verde si hubo '+n+(n===1?' visita o más':' visitas o más')+'. Cada visita se cuenta una sola vez, en la franja y en el día de su hora de entrada. Después, en las solapas 3 y 4, podés ver todos los supervisores juntos o elegir uno.';
+  return 'En el calendario, cada franja se pinta de rojo si no hubo visitas, '+(n>1?'de amarillo si hubo '+(n===2?'una sola visita':'menos de '+n+' visitas')+' y ':'')+'de verde si hubo '+n+(n===1?' visita o más':' visitas o más')+'. Cada supervisor cuenta una sola visita por franja y por día, aunque haya ingresado varias veces en esa franja; la franja se toma por la hora de entrada. Después, en las solapas 3 y 4, podés ver todos los supervisores juntos o elegir uno.';
 }
 function iniciarControles(){
   var u=$('umbral-vis'); if(!u) return; u.value=String(S.thr);
@@ -1163,14 +1167,14 @@ function iniciarControles(){
 
 function renderResumen(){
   var M=modelo();
-  $('lead-3').textContent=NOMBRE+', '+MESES[M.m].toLowerCase()+' '+M.y+(S.sup?', supervisor '+nombreSup():', todos los supervisores')+'. Cada visita se cuenta en la franja y en el día de su hora de entrada.';
+  $('lead-3').textContent=NOMBRE+', '+MESES[M.m].toLowerCase()+' '+M.y+(S.sup?', supervisor '+nombreSup():', todos los supervisores')+'. Cada supervisor cuenta una sola visita por franja y por día, según la hora de su entrada.';
   function c(n){return '<td'+(n===0?' class="cero"':'')+'>'+(n===0?'-':n)+'</td>';}
   var filas=M.rows.map(function(r){return '<tr><td>'+fmtFecha(M.y,M.m,r.d)+'</td><td class="izq">'+DIAS[r.wd]+'</td>'+c(r.total)+c(r.f[0])+c(r.f[1])+c(r.f[2])+'</tr>';}).join('');
   var pie='<tr><td class="izq" colspan="2">Total del mes</td><td>'+M.total+'</td><td>'+M.tot[0]+'</td><td>'+M.tot[1]+'</td><td>'+M.tot[2]+'</td></tr>';
   var otros=M.cargadas-M.delMes;
   $('resumen').innerHTML=selectorHtml()+
     '<div class="scroll"><table class="tabla"><thead><tr><th>Día</th><th class="izq">Día de la semana</th><th>Total del día</th><th>'+FRANJAS[0]+'</th><th>'+FRANJAS[1]+'</th><th>'+FRANJAS[2]+'</th></tr></thead><tbody>'+filas+'</tbody><tfoot>'+pie+'</tfoot></table></div>'+
-    '<p class="control">Control: se cargaron '+plural(M.cargadas)+'; '+M.delMes+(M.delMes===1?' tiene':' tienen')+' la entrada en este mes'+(otros?' (las otras '+otros+' son de otros meses)':'')+(S.sup?' y '+M.contadas+(M.contadas===1?' es':' son')+' de '+esc(nombreSup())+'.':'.')+'</p>';
+    '<p class="control">Control: se cargaron '+M.cargadas+(M.cargadas===1?' ingreso':' ingresos')+'; '+M.delMes+(M.delMes===1?' tiene':' tienen')+' la entrada en este mes'+(otros?' (los otros '+otros+' son de otros meses)':'')+(S.sup?' y '+M.contadas+(M.contadas===1?' es':' son')+' de '+esc(nombreSup())+'.':'.')+' '+NOTA_TOTAL+'</p>';
 }
 function renderCalendario(){
   var M=modelo(), W=semanas(M), cells='';
@@ -1199,7 +1203,7 @@ function preview(){
   var filas=S.visitas.slice(0,500).map(function(v){
     return '<tr><td>'+v.n+'</td><td>'+fmtFechaHora(v.a)+'</td><td>'+fmtFechaHora(v.b)+'</td><td class="izq">'+esc(v.nombre)+'</td><td>'+esc(v.dni||'-')+'</td><td>'+FRANJAS[franjaDe(v.a)]+'</td></tr>';
   }).join('');
-  return '<div class="scroll alto"><table class="tabla"><thead><tr><th>Fila</th><th>Entrada</th><th>Salida</th><th class="izq">Supervisor</th><th>DNI</th><th>Franja de la visita</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+(n>500?'<p class="control">Se muestran las primeras 500 visitas. Todas se usan en el cálculo.</p>':'');
+  return '<div class="scroll alto"><table class="tabla"><thead><tr><th>Fila</th><th>Entrada</th><th>Salida</th><th class="izq">Supervisor</th><th>DNI</th><th>Franja de la visita</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+(n>500?'<p class="control">Se muestran los primeros 500 ingresos. Todos se usan en el cálculo.</p>':'');
 }
 function avisosCarga(){
   if(S.total>0&&S.visitas.length===0) return ['<div class="aviso atencion">Para esta variable hace falta pegar también el supervisor (visitante) y el DNI, en la tercera y cuarta columna.</div>'];
@@ -1220,6 +1224,7 @@ async function xlsx(wb,inc,X){
     ['Total del mes','',M.total,M.tot[0],M.tot[1],M.tot[2]].forEach(function(v,j){var c=ws.getCell(tr,j+1);c.value=v;c.font={bold:true};c.alignment=centro;c.border=borde;c.fill=X.gris;if(j>=2)c.numFmt='0';});
     ws.mergeCells(tr,1,tr,2);
     [14,18,14,20,20,20].forEach(function(w,i){ws.getColumn(i+1).width=w;});
+    ws.getCell(tr+2,1).value=NOTA_TOTAL; ws.getCell(tr+2,1).font={italic:true,size:9};
     ws.views=[{state:'frozen',ySplit:3}];
   }
   if(inc.calendario){
@@ -1251,10 +1256,11 @@ function pdf(ctx,inc){
   if(inc.resumen){
     doc=ctx.nueva('portrait');
     doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(28,42,53); doc.text(titulo(M),14,18);
-    pdfGrid(doc,26,[26,30,30,32,32,32],[['Día','Día de la semana','Total del día',FRANJAS[0],FRANJAS[1],FRANJAS[2]]],
+    var yf=pdfGrid(doc,26,[26,30,30,32,32,32],[['Día','Día de la semana','Total del día',FRANJAS[0],FRANJAS[1],FRANJAS[2]]],
       M.rows.map(function(r){return [fmtFecha(M.y,M.m,r.d),DIAS[r.wd],r.total?String(r.total):'-',r.f[0]?String(r.f[0]):'-',r.f[1]?String(r.f[1]):'-',r.f[2]?String(r.f[2]):'-'];}),
       ['Total del mes','',String(M.total),String(M.tot[0]),String(M.tot[1]),String(M.tot[2])],
       {x0:14,orient:'portrait',maxY:285,top:18});
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.text(doc.splitTextToSize(NOTA_TOTAL,182),14,yf+6);
   }
   if(inc.calendario){
     doc=ctx.nueva('landscape');
@@ -1296,12 +1302,12 @@ return {
   etiquetaPegado:'Fecha de entrada, fecha de salida, supervisor y DNI',
   placeholder:'23/09/2026 14:10:22\t23/09/2026 14:36:51\tAPELLIDO, NOMBRE\t12345678',
   botonResumen:'Ver visitas por franja',
-  etiqueta:['visita válida','visitas válidas'], palabraOtros:'visitas',
-  mensajeVacio:'No se encontraron visitas. Revisá que estés pegando fecha de entrada, fecha de salida, supervisor y DNI.',
+  etiqueta:['ingreso válido','ingresos válidos'], palabraOtros:'ingresos',
+  mensajeVacio:'No se encontraron ingresos. Revisá que estés pegando fecha de entrada, fecha de salida, supervisor y DNI.',
   controlesHtml:'<label>Visitas para verde (cantidad mínima)<input id="umbral-vis" type="number" min="1" step="1" value="2"></label>',
   iniciarControles:iniciarControles, ayudaHtml:ayudaHtml,
   procesar:procesarFilas, n:function(){return S.visitas.length;}, hayDatos:function(){return S.visitas.length>0;},
-  estadoTxt:function(){var n=S.visitas.length;return n===0?'sin visitas cargadas.':n+(n===1?' visita cargada.':' visitas cargadas.');},
+  estadoTxt:function(){var n=S.visitas.length;return n===0?'sin ingresos cargados.':n+(n===1?' ingreso cargado.':' ingresos cargados.');},
   mesesConDatos:mesesConDatos, avisosCarga:avisosCarga, preview:preview,
   renderResumen:renderResumen, renderCalendario:renderCalendario,
   secciones:[{id:'resumen',label:'Resumen por día y franja (solapa 3)'},{id:'calendario',label:'Calendario con colores (solapa 4)'}],

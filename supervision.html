@@ -1,0 +1,1329 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Supervisión del objetivo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1c2a35; --ink-2:#51616e; --paper:#eef1f3; --panel:#ffffff; --head:#dfe6eb; --line:#c5cfd6;
+  --accent:#1e5b78; --accent-ink:#ffffff; --focus:#0a7bb5;
+  --rojo:#f26d6d; --amarillo:#f6d860; --verde:#5cb87a; --violeta:#b9a7ef; --violeta-2:#d6cbf7; --cell-ink:#1c2a35;
+  --f-head:'Barlow Semi Condensed','Arial Narrow','Helvetica Neue',Arial,sans-serif;
+  --f-body:'Barlow','Helvetica Neue',Arial,sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e6ecf0; --ink-2:#9fb0bc; --paper:#141b21; --panel:#1b242b; --head:#26333c; --line:#36444e;
+    --accent:#6bb6d6; --accent-ink:#0f1a20; --focus:#7cc7e8;
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e6ecf0; --ink-2:#9fb0bc; --paper:#141b21; --panel:#1b242b; --head:#26333c; --line:#36444e;
+  --accent:#6bb6d6; --accent-ink:#0f1a20; --focus:#7cc7e8;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.5;min-height:100%}
+[hidden]{display:none!important}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+
+.app{max-width:1120px;margin:0 auto;padding:28px 20px 56px}
+header.top{padding-bottom:18px}
+h1{font-family:var(--f-head);font-weight:700;font-size:clamp(1.7rem,3.4vw,2.3rem);line-height:1.1;margin:0 0 6px;letter-spacing:.005em}
+#estado{margin:0;color:var(--ink-2)}
+
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:thin}
+.tab{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:12px 18px 11px;background:none;border:0;border-bottom:3px solid transparent;cursor:pointer;color:var(--ink-2);font-family:var(--f-head);font-weight:600;font-size:1.05rem;white-space:nowrap}
+.tab .n{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1.5px solid currentColor;font-size:.82rem;font-weight:600}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.tab[aria-selected="true"] .n{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-top:0;padding:26px 24px 30px}
+.panel h2{font-family:var(--f-head);font-weight:700;font-size:1.5rem;margin:0 0 4px}
+.lead{margin:0 0 20px;color:var(--ink-2);max-width:62ch}
+
+.campos{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px 22px;max-width:820px}
+.campos label{display:flex;flex-direction:column;gap:6px;font-weight:500}
+.campos .ancho{grid-column:1/-1}
+select,input[type=number],textarea{background:var(--paper);border:1px solid var(--line);border-radius:3px;padding:9px 10px;width:100%}
+textarea{font-family:var(--f-body);font-variant-numeric:tabular-nums;resize:vertical;min-height:170px;line-height:1.45}
+.ayuda{color:var(--ink-2);font-size:.95rem;margin:16px 0 0;max-width:70ch}
+.acciones{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px;align-items:center}
+
+button.primario,button.sec{border-radius:3px;padding:10px 18px;font-weight:600;cursor:pointer;border:1.5px solid var(--accent)}
+button.primario{background:var(--accent);color:var(--accent-ink)}
+button.primario:hover{filter:brightness(1.08)}
+button.sec{background:transparent;color:var(--accent)}
+button.sec:hover{background:var(--head)}
+button:disabled{opacity:.45;cursor:not-allowed;filter:none}
+
+.mensajes{margin-top:16px;display:grid;gap:8px}
+.aviso{border-left:4px solid var(--accent);background:var(--paper);padding:10px 14px;max-width:80ch}
+.aviso.mal{border-left-color:var(--rojo)}
+.aviso.atencion{border-left-color:var(--amarillo)}
+.aviso ul{margin:6px 0 0;padding-left:20px}
+.aviso button{margin-left:6px;margin-top:4px}
+
+.scroll{overflow:auto;max-width:100%;border:1px solid var(--line)}
+.scroll.alto{max-height:340px}
+table.tabla{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+.tabla th,.tabla td{padding:7px 12px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
+.tabla th{background:var(--head);font-family:var(--f-head);font-weight:600;position:sticky;top:0}
+.tabla td.izq,.tabla th.izq{text-align:left}
+.tabla tfoot td{font-weight:700;background:var(--head)}
+.tabla .cero{color:var(--ink-2)}
+.control{margin:14px 0 0;color:var(--ink-2);font-size:.95rem}
+
+.leyenda{display:flex;flex-wrap:wrap;gap:8px 22px;margin:0 0 16px;align-items:center}
+.leyenda span.item{display:inline-flex;align-items:center;gap:8px}
+.muestra{width:18px;height:18px;border:1px solid rgba(0,0,0,.25);display:inline-block}
+.muestra.rojo{background:var(--rojo)}.muestra.amarillo{background:var(--amarillo)}.muestra.verde{background:var(--verde)}
+.opcion{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+.opcion input{width:18px;height:18px;accent-color:var(--accent)}
+
+.cal-wrap{overflow-x:auto;max-width:100%}
+.cal-titulo{font-family:var(--f-head);font-weight:700;font-size:1.35rem;margin:0 0 10px}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));min-width:760px;border-top:1px solid var(--line);border-left:1px solid var(--line)}
+.dia{border-right:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
+.dia.vacio{background:var(--paper);opacity:.55}
+.dia-h{font-family:var(--f-head);font-weight:600;text-align:center;padding:5px 6px;background:var(--head)}
+.fr{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 10px;font-size:.92rem;color:var(--cell-ink);border-top:1px solid rgba(28,42,53,.2);font-variant-numeric:tabular-nums}
+.fr.rojo{background:var(--rojo)}.fr.amarillo{background:var(--amarillo)}.fr.verde{background:var(--verde)}
+.fr .t{font-weight:600}
+.fr.revisar{background:repeating-linear-gradient(135deg,var(--violeta) 0 9px,var(--violeta-2) 9px 18px)}
+.muestra.revisar{background:repeating-linear-gradient(135deg,var(--violeta) 0 5px,var(--violeta-2) 5px 10px)}
+.tabla td.revisar{background:repeating-linear-gradient(135deg,var(--violeta) 0 9px,var(--violeta-2) 9px 18px);color:#1c2a35;font-weight:600}
+.tabla td.wrap{white-space:normal;min-width:180px}
+.cortes{margin-top:26px}
+button.chico{padding:5px 11px;font-size:.9rem}
+.tabla td.acc{white-space:nowrap}
+.est{display:inline-flex;align-items:center;gap:6px;font-weight:500}
+input.ed{width:100%;min-width:158px;font-variant-numeric:tabular-nums;padding:5px 7px;background:var(--paper);border:1px solid var(--line);border-radius:3px}
+#banner{margin:0 0 14px}
+.cortes h3{font-family:var(--f-head);font-weight:700;font-size:1.2rem;margin:0 0 6px}
+.cortes p{margin:0 0 12px;color:var(--ink-2);max-width:78ch}
+
+.vacio-msg{padding:26px 22px;border:1px dashed var(--line);max-width:640px}
+.vacio-msg p{margin:0 0 14px}
+.grupo{border:0;padding:0;margin:0 0 22px}
+.grupo legend{font-family:var(--f-head);font-weight:600;font-size:1.1rem;padding:0;margin-bottom:8px}
+.grupo .opcion{display:flex;margin-bottom:6px}
+#msg-descarga{margin-top:16px;min-height:1.5em}
+
+@media (max-width:640px){
+  .app{padding:18px 12px 40px}
+  .panel{padding:20px 14px 24px}
+  .tab{padding:10px 12px 9px;font-size:1rem}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+.subtitulo{font-family:var(--f-head);font-weight:700;font-size:1.2rem;margin:26px 0 8px}
+.subtitulo:first-child{margin-top:0}
+.tabla th small{font-weight:400;color:var(--ink-2);display:block}
+.tabla td.sep,.tabla th.sep{border-left:2px solid var(--line)}
+.sin-cal{padding:22px;border:1px dashed var(--line);max-width:640px}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h1 id="titulo">Supervisión del objetivo</h1>
+    <p id="estado" aria-live="polite"></p>
+    <div id="banner" class="aviso" role="status" hidden></div>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="Pasos del análisis">
+    <button class="tab" role="tab" id="tab-1" aria-controls="panel-1" aria-selected="true"><span class="n">1</span><span>Mes y variable</span></button>
+    <button class="tab" role="tab" id="tab-2" aria-controls="panel-2" aria-selected="false" tabindex="-1"><span class="n">2</span><span>Carga de datos</span></button>
+    <button class="tab" role="tab" id="tab-3" aria-controls="panel-3" aria-selected="false" tabindex="-1"><span class="n">3</span><span id="tl-3">Resumen</span></button>
+    <button class="tab" role="tab" id="tab-4" aria-controls="panel-4" aria-selected="false" tabindex="-1"><span class="n">4</span><span id="tl-4">Calendario</span></button>
+    <button class="tab" role="tab" id="tab-5" aria-controls="panel-5" aria-selected="false" tabindex="-1"><span class="n">5</span><span>Descargas</span></button>
+  </div>
+
+  <section class="panel" id="panel-1" role="tabpanel" aria-labelledby="tab-1">
+    <h2>Mes y variable</h2>
+    <p class="lead">Elegí el mes que querés analizar y la variable que se va a calcular.</p>
+    <div class="campos">
+      <label>Mes
+        <select id="mes"></select>
+      </label>
+      <label>Año
+        <input id="anio" type="number" min="2000" max="2100" step="1">
+      </label>
+      <label class="ancho">Variable
+        <select id="variable"></select>
+      </label>
+      <span id="mod-controles" style="display:contents"></span>
+    </div>
+    <p class="ayuda" id="ayuda-var"></p>
+    <div class="acciones">
+      <button class="primario" data-goto="2">Continuar con la carga de datos</button>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-2" role="tabpanel" aria-labelledby="tab-2" hidden>
+    <h2>Carga de datos</h2>
+    <p class="lead" id="lead-2"></p>
+    <label for="pegado" id="lbl-pegado" style="font-weight:500;display:block;margin-bottom:6px"></label>
+    <textarea id="pegado" spellcheck="false"></textarea>
+    <div class="acciones">
+      <button class="primario" id="btn-ver-resumen" disabled>Ver resumen</button>
+      <button class="sec" id="btn-limpiar">Borrar datos</button>
+    </div>
+    <div class="mensajes" id="mensajes" aria-live="polite"></div>
+    <div id="preview" style="margin-top:20px"></div>
+  </section>
+
+  <section class="panel" id="panel-3" role="tabpanel" aria-labelledby="tab-3" hidden>
+    <h2 id="h-3">Resumen</h2>
+    <p class="lead" id="lead-3"></p>
+    <div id="resumen"></div>
+  </section>
+
+  <section class="panel" id="panel-4" role="tabpanel" aria-labelledby="tab-4" hidden>
+    <h2 id="h-4">Calendario</h2>
+    <div id="calendario"></div>
+  </section>
+
+  <section class="panel" id="panel-5" role="tabpanel" aria-labelledby="tab-5" hidden>
+    <h2>Descargas</h2>
+    <p class="lead">Elegí qué querés incluir y en qué formato lo querés descargar.</p>
+    <fieldset class="grupo">
+      <legend>Qué incluir</legend>
+      <div id="desc-opciones"></div>
+    </fieldset>
+    <div class="acciones">
+      <button class="primario" id="btn-xlsx" disabled>Descargar Excel (.xlsx)</button>
+      <button class="primario" id="btn-pdf" disabled>Descargar PDF</button>
+    </div>
+    <p id="msg-descarga" aria-live="polite"></p>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+(function(){
+'use strict';
+
+/* =====================================================================
+   NÚCLEO: utilidades, lectura de lo pegado, solapas, descargas
+   Cada variable es un módulo independiente (ver VARS al final).
+   Un módulo define: nombre, textos de ayuda, procesar(), resumen,
+   calendario (opcional), y qué sale en Excel y PDF.
+   ===================================================================== */
+var DAY=86400000;
+var MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+var DIAS=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+var RGB={rojo:[242,109,109],amarillo:[246,216,96],verde:[92,184,122],revisar:[185,167,239]};
+var ARGB={rojo:'FFF26D6D',amarillo:'FFF6D860',verde:'FF5CB87A',revisar:'FFB9A7EF'};
+
+var hoy=new Date();
+var state={varId:'permanencia',month:hoy.getMonth(),year:hoy.getFullYear(),filas:[],issues:[],issuesMod:[],skipped:0,notice:'',incl:{}};
+var VARS={};
+function mod(){return VARS[state.varId];}
+
+function $(id){return document.getElementById(id);}
+function pad2(n){return (n<10?'0':'')+n;}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function fmt(s){ s=Math.round(s); var h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60; return pad2(h)+':'+pad2(m)+':'+pad2(x); }
+function fmtCero(s){return Math.round(s)===0?'-':fmt(s);}
+function fmtFechaHora(ms){var d=new Date(ms);return pad2(d.getUTCDate())+'/'+pad2(d.getUTCMonth()+1)+'/'+d.getUTCFullYear()+' '+pad2(d.getUTCHours())+':'+pad2(d.getUTCMinutes())+':'+pad2(d.getUTCSeconds());}
+function fmtFecha(y,m,d){return pad2(d)+'/'+pad2(m+1)+'/'+y;}
+function slug(s){return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_');}
+
+/* ---------- lectura de lo pegado (común a todas las variables) ---------- */
+var RX=/(\d{1,2})\/(\d{1,2})\/(\d{4})[\sT,;]+(\d{1,2}):(\d{2})(?::(\d{2}))?/g;
+var RX1=/^\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*$/;
+function toMs(m){
+  var d=+m[1],mo=+m[2],y=+m[3],h=+m[4],mi=+m[5],s=m[6]?+m[6]:0;
+  if(mo<1||mo>12||d<1||h>23||mi>59||s>59) return NaN;
+  var t=Date.UTC(y,mo-1,d,h,mi,s), dt=new Date(t);
+  if(dt.getUTCDate()!==d||dt.getUTCMonth()!==mo-1) return NaN;
+  return t;
+}
+function parseUna(str){var m=RX1.exec(str);return m?toMs(m):NaN;}
+/* Cada fila válida tiene entrada (a), salida (b), número de fila (n) y "rest": el texto de las columnas que siguen (con tabuladores). */
+function leerFilas(text){
+  var filas=[],issues=[],skipped=0;
+  text.split(/\r?\n/).forEach(function(raw,i){
+    var line=raw.trim(); if(!line) return;
+    var n=i+1, ms=Array.from(line.matchAll(RX));
+    if(ms.length===0){
+      if(!/\d/.test(line)){skipped++;return;}
+      issues.push('Fila '+n+': no se encontró una fecha con formato dd/mm/aaaa hh:mm:ss.'); return;
+    }
+    if(ms.length===1){issues.push('Fila '+n+': falta la fecha de salida (se necesitan dos columnas).');return;}
+    var a=toMs(ms[0]), b=toMs(ms[1]);
+    if(isNaN(a)||isNaN(b)){issues.push('Fila '+n+': fecha u hora no válida.');return;}
+    if(b<a){issues.push('Fila '+n+': la salida es anterior a la entrada.');return;}
+    var rest=line.slice(ms[1].index+ms[1][0].length).replace(/^[\s;,]+/,'');
+    filas.push({a:a,b:b,n:n,rest:rest});
+  });
+  return {filas:filas,issues:issues,skipped:skipped};
+}
+
+
+function norm(t){return t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();}
+/* El resto de la fila trae el supervisor y el DNI (separados por tabulador al copiar desde Excel). */
+function leerSupervisor(rest){
+  var t=(rest||'').replace(/^[\s;,]+/,'').trim(); if(!t) return null;
+  var parts=t.split(/\s*\t+\s*/).filter(function(x){return x;}), nombre='', dni='';
+  if(parts.length>=2){ nombre=parts[0]; var d=parts[1].replace(/[.\s]/g,''); if(/^\d{6,10}$/.test(d)) dni=d; }
+  else { var m=/^(.*?)[\s,;]+(\d[\d.]{5,11})$/.exec(t); if(m){nombre=m[1].trim();dni=m[2].replace(/\./g,'');} else nombre=t; }
+  nombre=nombre.replace(/\s+/g,' ').trim(); if(!nombre) return null;
+  return {nombre:nombre,dni:dni,key:dni||norm(nombre)};
+}
+
+var bannerTmr=null;
+function banner(msg){var b=$('banner');b.textContent=msg;b.hidden=false;clearTimeout(bannerTmr);bannerTmr=setTimeout(function(){b.hidden=true;},9000);}
+
+/* ---------- procesamiento ---------- */
+function procesar(){
+  var res=leerFilas($('pegado').value);
+  state.filas=res.filas; state.issues=res.issues; state.skipped=res.skipped;
+  procesarModulo();
+}
+function procesarModulo(){
+  var m=mod();
+  state.issuesMod=m.procesar(state.filas)||[];
+  state.notice='';
+  var byMonth=m.mesesConDatos(), selKey=state.year*12+state.month;
+  if(byMonth.size>0 && !(byMonth.get(selKey)>0)){
+    var best=null;
+    byMonth.forEach(function(s,k){if(best===null||s>byMonth.get(best)) best=k;});
+    if(best!==null){
+      state.year=Math.floor(best/12); state.month=best%12;
+      state.notice='El mes seleccionado no tenía datos, así que se cambió a '+MESES[state.month]+' '+state.year+'.';
+      $('mes').value=String(state.month); $('anio').value=String(state.year);
+    }
+  }
+  renderTodo();
+}
+
+/* ---------- pantallas ---------- */
+function vacioHtml(){
+  return '<div class="vacio-msg"><p>Todavía no hay datos cargados. Pegá los registros en la solapa Carga de datos para ver esta información.</p><button class="primario" data-goto="2">Ir a carga de datos</button></div>';
+}
+function renderVariable(){
+  var m=mod();
+  $('tl-3').textContent=m.tabResumen; $('h-3').textContent=m.tabResumen;
+  $('tl-4').textContent=m.tabCalendario||'Calendario'; $('h-4').textContent=m.tabCalendario||'Calendario';
+  $('lead-2').textContent=m.ayudaCarga; $('lbl-pegado').textContent=m.etiquetaPegado;
+  $('pegado').placeholder=m.placeholder; $('btn-ver-resumen').textContent=m.botonResumen;
+  $('mod-controles').innerHTML=m.controlesHtml||'';
+  if(m.iniciarControles) m.iniciarControles();
+}
+function renderEstado(){
+  var m=mod();
+  $('estado').textContent=m.nombre+' · '+MESES[state.month]+' '+state.year+': '+m.estadoTxt();
+  $('ayuda-var').innerHTML=m.ayudaHtml();
+}
+function renderCarga(){
+  var m=mod(), msgs=[], n=m.n();
+  if($('pegado').value.trim()===''){ $('mensajes').innerHTML=''; $('preview').innerHTML=''; $('btn-ver-resumen').disabled=true; return; }
+  var iss=state.issues.concat(state.issuesMod);
+  if(n>0) msgs.push('<div class="aviso">Se leyeron <strong>'+n+'</strong> '+(n===1?m.etiqueta[0]:m.etiqueta[1])+'.'+(state.skipped?' Se omitió la fila de encabezado.':'')+'</div>');
+  if(iss.length){
+    var li=iss.slice(0,12).map(function(t){return '<li>'+esc(t)+'</li>';}).join('');
+    var mas=iss.length>12?'<li>Y '+(iss.length-12)+' más.</li>':'';
+    msgs.push('<div class="aviso mal"><strong>'+iss.length+(iss.length===1?' fila descartada':' filas descartadas')+'.</strong><ul>'+li+mas+'</ul></div>');
+  }
+  if(n===0 && !iss.length) msgs.push('<div class="aviso atencion">'+m.mensajeVacio+'</div>');
+  if(state.notice) msgs.push('<div class="aviso atencion">'+esc(state.notice)+'</div>');
+  (m.avisosCarga?m.avisosCarga():[]).forEach(function(h){msgs.push(h);});
+  var byMonth=m.mesesConDatos(), selKey=state.year*12+state.month, otros=[];
+  byMonth.forEach(function(s,k){if(k!==selKey&&s>0) otros.push(k);});
+  if(otros.length){
+    otros.sort(function(a,b){return a-b;});
+    var btns=otros.slice(0,4).map(function(k){return '<button class="sec" data-mes="'+k+'">Ver '+MESES[k%12].toLowerCase()+' '+Math.floor(k/12)+'</button>';}).join(' ');
+    msgs.push('<div class="aviso atencion">Los datos incluyen '+m.palabraOtros+' de otros meses, que no se cuentan en '+MESES[state.month].toLowerCase()+'. '+btns+'</div>');
+  }
+  $('mensajes').innerHTML=msgs.join('');
+  $('btn-ver-resumen').disabled=(n===0);
+  $('preview').innerHTML=n>0?m.preview():'';
+}
+function renderDescargas(){
+  var m=mod(), html='';
+  m.secciones.forEach(function(s){
+    var k=m.id+':'+s.id; if(state.incl[k]===undefined) state.incl[k]=true;
+    html+='<label class="opcion"><input type="checkbox" data-inc="'+s.id+'"'+(state.incl[k]?' checked':'')+'> '+s.label+'</label>';
+  });
+  html+=(m.descargaExtraHtml?m.descargaExtraHtml():'');
+  $('desc-opciones').innerHTML=html;
+  if(m.sincronizarDescarga) m.sincronizarDescarga();
+  var inc=incl(), ok=m.hayDatos()&&Object.keys(inc).some(function(k){return inc[k];});
+  $('btn-xlsx').disabled=!ok; $('btn-pdf').disabled=!ok;
+  if(!m.hayDatos()) $('msg-descarga').textContent='Primero cargá los datos en la solapa 2.';
+  else if(!ok) $('msg-descarga').textContent='Elegí al menos una opción para incluir.';
+  else if($('msg-descarga').dataset.fija!=='1') $('msg-descarga').textContent='';
+}
+function incl(){
+  var m=mod(), o={};
+  m.secciones.forEach(function(s){o[s.id]=!!state.incl[m.id+':'+s.id];});
+  return o;
+}
+function renderTodo(){
+  var m=mod();
+  renderEstado(); renderCarga();
+  if(!m.hayDatos()){ $('resumen').innerHTML=vacioHtml(); $('calendario').innerHTML=vacioHtml(); }
+  else{
+    m.renderResumen();
+    if(m.renderCalendario) m.renderCalendario();
+    else $('calendario').innerHTML='<div class="sin-cal"><p>Esta variable no tiene calendario. Todo lo calculado está en la solapa 3.</p><button class="primario" data-goto="3">Ir al resumen</button></div>';
+  }
+  renderDescargas();
+  if(m.despuesDeRender) m.despuesDeRender();
+}
+
+/* ---------- solapas ---------- */
+function goTab(n){
+  for(var i=1;i<=5;i++){
+    var sel=(i===n);
+    $('tab-'+i).setAttribute('aria-selected',sel?'true':'false');
+    $('tab-'+i).tabIndex=sel?0:-1;
+    $('panel-'+i).hidden=!sel;
+  }
+  window.scrollTo({top:0});
+}
+document.querySelectorAll('.tab').forEach(function(b,idx){
+  b.addEventListener('click',function(){goTab(idx+1);});
+  b.addEventListener('keydown',function(ev){
+    var n=idx+1, t=null;
+    if(ev.key==='ArrowRight') t=n%5+1; else if(ev.key==='ArrowLeft') t=(n+3)%5+1;
+    if(t){ev.preventDefault();goTab(t);$('tab-'+t).focus();}
+  });
+});
+document.addEventListener('click',function(ev){
+  var g=ev.target.closest('[data-goto]'); if(g){goTab(+g.dataset.goto);return;}
+  var m=ev.target.closest('[data-mes]');
+  if(m){var k=+m.dataset.mes; state.year=Math.floor(k/12); state.month=k%12; state.notice=''; $('mes').value=String(state.month); $('anio').value=String(state.year); renderTodo();}
+});
+
+/* ---------- controles generales ---------- */
+MESES.forEach(function(nm,i){var o=document.createElement('option');o.value=String(i);o.textContent=nm;$('mes').appendChild(o);});
+$('mes').value=String(state.month); $('anio').value=String(state.year);
+$('mes').addEventListener('change',function(){state.month=+this.value;state.notice='';renderTodo();});
+$('anio').addEventListener('change',function(){var y=parseInt(this.value,10); if(y>=2000&&y<=2100){state.year=y;state.notice='';renderTodo();} else this.value=String(state.year);});
+$('variable').addEventListener('change',function(){state.varId=this.value;renderVariable();procesarModulo();});
+var tmr=null;
+$('pegado').addEventListener('input',function(){clearTimeout(tmr);tmr=setTimeout(procesar,250);});
+$('btn-limpiar').addEventListener('click',function(){
+  $('pegado').value='';
+  Object.keys(VARS).forEach(function(k){if(VARS[k].reiniciar)VARS[k].reiniciar();});
+  procesar(); $('pegado').focus();
+});
+$('btn-ver-resumen').addEventListener('click',function(){goTab(3);});
+document.addEventListener('change',function(ev){
+  var c=ev.target; if(!c.dataset||c.dataset.inc===undefined) return;
+  state.incl[mod().id+':'+c.dataset.inc]=c.checked; renderDescargas();
+});
+
+/* ---------- ayudas para dibujar en Excel y PDF ---------- */
+var fino={style:'thin',color:{argb:'FF9AA7B2'}};
+var XL={borde:{top:fino,left:fino,bottom:fino,right:fino},centro:{horizontal:'center',vertical:'middle'},TF:'[h]:mm:ss;-[h]:mm:ss;"-"',
+        gris:{type:'pattern',pattern:'solid',fgColor:{argb:'FFDFE6EB'}}};
+/* Tabla con encabezados (con celdas combinadas), cuerpo y fila de totales; salta de página si hace falta. */
+function pdfGrid(doc,y,cw,headRows,body,foot,opt){
+  opt=opt||{}; var x0=opt.x0||10, rh=7, GRIS=[223,230,235], maxY=opt.maxY||200, orient=opt.orient||'landscape', top=opt.top||15;
+  doc.setDrawColor(150,163,174); doc.setLineWidth(0.2); doc.setFontSize(8); doc.setTextColor(28,42,53);
+  function recortar(txt,ancho){var e=txt||'';while(e.length>0&&doc.getTextWidth(e)>ancho-3)e=e.slice(0,-1);if(e.length<(txt||'').length)e=e.slice(0,-1)+'...';return e;}
+  function fila(cells,fill,bold){
+    var x=x0, ci=0;
+    cells.forEach(function(c){
+      var cell=(typeof c==='object')?c:{t:c,span:1}, span=cell.span||1, w=0;
+      for(var k=0;k<span;k++) w+=cw[ci+k];
+      if(fill){doc.setFillColor(fill[0],fill[1],fill[2]);doc.rect(x,y,w,rh,'FD');} else doc.rect(x,y,w,rh,'S');
+      doc.setFont('helvetica',bold?'bold':'normal');
+      var first=(ci===0), t=recortar(String(cell.t),w);
+      doc.text(t,first?x+2:x+w/2,y+rh/2+1.2,first?{}:{align:'center'});
+      x+=w; ci+=span;
+    });
+    y+=rh;
+  }
+  function cabeceras(){headRows.forEach(function(h){fila(h,GRIS,true);});}
+  cabeceras();
+  body.forEach(function(r){ if(y+rh>maxY){doc.addPage('a4',orient);y=top;cabeceras();} fila(r,null,false); });
+  if(foot){ if(y+rh>maxY){doc.addPage('a4',orient);y=top;cabeceras();} fila(foot,GRIS,true); }
+  return y;
+}
+
+/* ---------- exportar ---------- */
+async function buildXlsx(){
+  var wb=new ExcelJS.Workbook();
+  await mod().xlsx(wb,incl(),XL);
+  return await wb.xlsx.writeBuffer();
+}
+function buildPdf(){
+  var jsPDF=window.jspdf.jsPDF, doc=null;
+  var ctx={nueva:function(o){ if(!doc){doc=new jsPDF({orientation:o,unit:'mm',format:'a4'});} else doc.addPage('a4',o); return doc; }};
+  mod().pdf(ctx,incl());
+  return doc.output('arraybuffer');
+}
+var dlPromise=(window.claude&&typeof window.claude.use==='function')?window.claude.use('downloads').catch(function(){return null;}):Promise.resolve(null);
+function mensaje(t){var e=$('msg-descarga');e.textContent=t;e.dataset.fija='1';}
+async function guardar(nombre,buf){
+  var dl=await dlPromise;
+  if(dl){
+    try{ await dl.save({filename:nombre,data:buf.slice(0)}); mensaje('Listo: '+nombre); }
+    catch(e){ mensaje(e&&e.code==='declined'?'Descarga cancelada.':'No se pudo guardar el archivo. Probá de nuevo.'); }
+    return;
+  }
+  try{
+    var url=URL.createObjectURL(new Blob([buf])), a=document.createElement('a');
+    a.href=url; a.download=nombre; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){URL.revokeObjectURL(url);},2000); mensaje('Listo: '+nombre);
+  }catch(e){ mensaje('En esta vista no se pueden guardar archivos.'); }
+}
+function base(){return mod().archivo+'_'+slug(MESES[state.month])+'_'+state.year;}
+$('btn-xlsx').addEventListener('click',async function(){
+  if(!window.ExcelJS){mensaje('No se pudo cargar la librería de Excel. Revisá la conexión y recargá la página.');return;}
+  mensaje('Preparando el archivo de Excel...');
+  try{ var buf=await buildXlsx(); await guardar(base()+'.xlsx',buf); }
+  catch(e){ mensaje('No se pudo generar el Excel.'); }
+});
+$('btn-pdf').addEventListener('click',async function(){
+  if(!(window.jspdf&&window.jspdf.jsPDF)){mensaje('No se pudo cargar la librería de PDF. Revisá la conexión y recargá la página.');return;}
+  mensaje('Preparando el PDF...');
+  try{ var buf=buildPdf(); await guardar(base()+'.pdf',buf); }
+  catch(e){ mensaje('No se pudo generar el PDF.'); }
+});
+
+/* =====================================================================
+   VARIABLE 1: Tiempo de permanencia en el objetivo
+   (la lógica de franjas, calendario, cortes por medianoche y controles)
+   ===================================================================== */
+var PERM=(function(){
+var FRANJAS=['06:00 - 14:00 hs.','14:00 - 22:00 hs.','22:00 - 06:00 hs.'];
+var WINDOWS=[[0,6,2],[6,14,0],[14,22,1],[22,24,2]];   // [hora desde, hora hasta, índice de franja]
+var VARIABLE='Tiempo de permanencia en el objetivo';
+var GUIA_CORTES='Estas permanencias cruzan la medianoche, por eso se reparten entre dos días. Controlá si la persona realmente siguió en el objetivo después de las 00:00 o si fue una falla del sistema (por ejemplo, una salida que no se registró a tiempo).';
+var S={thr:3,records:[],dist:new Map(),showTimes:false,cortes:[],nochesRev:new Set(),revisiones:{},log:[],editando:null,errorEdicion:'',edTxt:null};
+
+function thrSeg(){return S.thr*3600;}
+function thrTxt(){return String(S.thr).replace('.',',');}
+function estado(s){s=Math.round(s);return s===0?'rojo':(s<thrSeg()?'amarillo':'verde');}
+function estadoTxt(e){return e==='rojo'?'sin permanencia':(e==='amarillo'?'menos de '+thrTxt()+' h':thrTxt()+' h o más');}
+
+/* ---------- reparto exacto por día y franja ---------- */
+function distribute(records){
+  var map=new Map();
+  records.forEach(function(r){
+    var t=r.a;
+    while(t<r.b){
+      var di=Math.floor(t/DAY), ds=di*DAY, end=Math.min(r.b,ds+DAY);
+      var arr=map.get(di); if(!arr){arr=[0,0,0];map.set(di,arr);}
+      WINDOWS.forEach(function(w){
+        var lo=Math.max(t,ds+w[0]*3600000), hi=Math.min(end,ds+w[1]*3600000);
+        if(hi>lo) arr[w[2]]+=(hi-lo)/1000;
+      });
+      t=end;
+    }
+  });
+  return map;
+}
+function detectarCortes(records){
+  var list=[], noches=new Set();
+  records.forEach(function(r){
+    var m=(Math.floor(r.a/DAY)+1)*DAY, first=m, cuts=0, days=[];
+    while(m<r.b){
+      cuts++; var di=Math.floor(m/DAY);
+      noches.add(di-1); noches.add(di); days.push(di-1,di);
+      m+=DAY;
+    }
+    if(cuts>0) list.push({key:r.a+'|'+r.b+'|'+(r.extra||''),n:r.n,a:r.a,b:r.b,extra:r.extra,cuts:cuts,days:days,antes:cuts===1?(first-r.a)/1000:null,despues:cuts===1?(r.b-first)/1000:null});
+  });
+  list.sort(function(x,y){return x.a-y.a;});
+  return {list:list,noches:noches};
+}
+function cortesDelMes(M){
+  var ini=Math.floor(Date.UTC(M.y,M.m,1)/DAY), fin=ini+M.n-1;
+  return S.cortes.filter(function(c){return c.days.some(function(d){return d>=ini&&d<=fin;});});
+}
+function estadoCorte(c){var r=S.revisiones[c.key];return r?r.estado:'pendiente';}
+function recalcRev(){
+  S.nochesRev=new Set(); var hay=false;
+  S.cortes.forEach(function(c){
+    if(c.key===S.editando) hay=true;
+    if(estadoCorte(c)==='pendiente') c.days.forEach(function(d){S.nochesRev.add(d);});
+  });
+  if(!hay){S.editando=null;S.errorEdicion='';S.edTxt=null;}
+}
+function pendientesDelMes(M){return cortesDelMes(M).filter(function(c){return estadoCorte(c)==='pendiente';});}
+function correccionesVisibles(){
+  var keys=new Set(S.records.map(function(r){return r.a+'|'+r.b+'|'+(r.extra||'');}));
+  return S.log.filter(function(x){return keys.has(x.key);});
+}
+function txtEstado(c){var e=estadoCorte(c);return e==='pendiente'?'Pendiente':(e==='validado'?'Validado':'Corregido');}
+function cortesHtml(M){
+  var L=cortesDelMes(M), corr=correccionesVisibles();
+  if(!L.length&&!corr.length) return '';
+  var out='<div class="cortes">';
+  if(L.length){
+    var pend=pendientesDelMes(M).length;
+    var filas=L.map(function(c){
+      var est=estadoCorte(c), ed=(S.editando===c.key), k=esc(c.key);
+      var ea=ed?'<input class="ed ed-a" type="text" spellcheck="false" aria-label="Entrada" value="'+esc(S.edTxt?S.edTxt.a:fmtFechaHora(c.a))+'">':fmtFechaHora(c.a);
+      var eb=ed?'<input class="ed ed-b" type="text" spellcheck="false" aria-label="Salida" value="'+esc(S.edTxt?S.edTxt.b:fmtFechaHora(c.b))+'">':fmtFechaHora(c.b);
+      var et=est==='pendiente'?'<span class="est"><i class="muestra revisar"></i>Pendiente</span>':(est==='validado'?'<span class="est">✓ Validado</span>':'<span class="est">Corregido</span>');
+      var acc=ed?'<button class="primario chico" data-acc="guardar">Guardar</button> <button class="sec chico" data-acc="cancelar">Cancelar</button>'
+        :(est==='pendiente'?'<button class="primario chico" data-acc="validar">Validar</button> <button class="sec chico" data-acc="editar">Modificar</button>'
+        :'<button class="sec chico" data-acc="reabrir">Reabrir</button>');
+      return '<tr data-key="'+k+'"><td>'+c.n+'</td><td>'+ea+'</td><td>'+eb+'</td><td>'+fmt((c.b-c.a)/1000)+'</td><td>'+(c.antes===null?'varios cortes':fmt(c.antes))+'</td><td>'+(c.despues===null?'varios cortes':fmt(c.despues))+'</td><td class="izq wrap">'+(c.extra?esc(c.extra):'')+'</td><td>'+et+'</td><td class="acc">'+acc+'</td></tr>';
+    }).join('');
+    out+='<h3>Cortes por medianoche ('+L.length+(L.length===1?': ':': ')+pend+(pend===1?' pendiente de revisión':' pendientes de revisión')+')</h3>'+
+      '<p>'+GUIA_CORTES+' Si el corte es correcto, usá <strong>Validar</strong>. Si fue un error, usá <strong>Modificar</strong> para corregir la entrada o la salida: el cambio se aplica al texto pegado en la solapa 2 (no a tu Excel original) y queda registrado en las correcciones. Mientras estén pendientes, las franjas nocturnas de los dos días se ven en violeta.</p>'+
+      (S.errorEdicion?'<div class="aviso mal" role="alert" style="margin-bottom:10px">'+esc(S.errorEdicion)+'</div>':'')+
+      '<div class="scroll"><table class="tabla"><thead><tr><th>Fila pegada</th><th>Entrada</th><th>Salida</th><th>Permanencia</th><th>Hasta las 00:00</th><th>Desde las 00:00</th><th class="izq">Datos adicionales de la fila</th><th>Estado</th><th>Control</th></tr></thead><tbody>'+filas+'</tbody></table></div>';
+  }
+  if(corr.length){
+    var f2=corr.map(function(x){
+      return '<tr><td>'+x.n+'</td><td>'+fmtFechaHora(x.origA)+'</td><td>'+fmtFechaHora(x.origB)+'</td><td>'+fmtFechaHora(x.newA)+'</td><td>'+fmtFechaHora(x.newB)+'</td><td class="izq wrap">'+(x.extra?esc(x.extra):'')+'</td></tr>';
+    }).join('');
+    out+='<h3 style="margin-top:22px">Correcciones realizadas ('+corr.length+')</h3><p>Registros que se modificaron en esta pantalla. Los valores originales siguen en tu Excel.</p><div class="scroll"><table class="tabla"><thead><tr><th>Fila pegada</th><th>Entrada original</th><th>Salida original</th><th>Entrada corregida</th><th>Salida corregida</th><th class="izq">Datos adicionales de la fila</th></tr></thead><tbody>'+f2+'</tbody></table></div>';
+  }
+  return out+'</div>';
+}
+function segundosPorMes(map){
+  var out=new Map();
+  map.forEach(function(v,di){
+    var d=new Date(di*DAY), key=d.getUTCFullYear()*12+d.getUTCMonth();
+    out.set(key,(out.get(key)||0)+v[0]+v[1]+v[2]);
+  });
+  return out;
+}
+function monthModel(){
+  var y=state.year, m=state.month, n=new Date(Date.UTC(y,m+1,0)).getUTCDate();
+  var rows=[], tot=[0,0,0];
+  for(var d=1;d<=n;d++){
+    var t=Date.UTC(y,m,d), v=S.dist.get(Math.floor(t/DAY))||[0,0,0];
+    var wd=(new Date(t).getUTCDay()+6)%7;
+    rows.push({d:d,wd:wd,f:v.slice(),total:v[0]+v[1]+v[2],rev:S.nochesRev.has(Math.floor(t/DAY))});
+    for(var k=0;k<3;k++) tot[k]+=v[k];
+  }
+  return {y:y,m:m,n:n,rows:rows,tot:tot,total:tot[0]+tot[1]+tot[2]};
+}
+function semanas(M){
+  var weeks=[], cur=new Array(7).fill(null);
+  M.rows.forEach(function(r){
+    cur[r.wd]=r;
+    if(r.wd===6){weeks.push(cur);cur=new Array(7).fill(null);}
+  });
+  if(cur.some(function(x){return x;})) weeks.push(cur);
+  return weeks;
+}
+
+
+function renderResumen(){
+  $('lead-3').textContent=VARIABLE+', '+MESES[state.month].toLowerCase()+' '+state.year+'. Cada permanencia se reparte según los minutos que caen en cada franja y en cada día.';
+  if(S.records.length===0){ $('resumen').innerHTML=vacioHtml(); return; }
+  var M=monthModel();
+  var filas=M.rows.map(function(r){
+    function c(s,rev){return '<td'+(rev?' class="revisar" title="Permanencia partida por la medianoche: revisar el corte"':(Math.round(s)===0?' class="cero"':''))+'>'+fmtCero(s)+(rev?' *':'')+'</td>';}
+    return '<tr><td>'+fmtFecha(M.y,M.m,r.d)+'</td><td class="izq">'+DIAS[r.wd]+'</td>'+c(r.total)+c(r.f[0])+c(r.f[1])+c(r.f[2],r.rev)+'</tr>';
+  }).join('');
+  var pie='<tr><td class="izq" colspan="2">Total del mes</td><td>'+fmt(M.total)+'</td><td>'+fmt(M.tot[0])+'</td><td>'+fmt(M.tot[1])+'</td><td>'+fmt(M.tot[2])+'</td></tr>';
+  var suma=0; S.records.forEach(function(r){suma+=(r.b-r.a)/1000;});
+  var ctrl=Math.round(suma)===Math.round(M.total)
+    ? 'Control: el total del mes coincide con la suma de todas las permanencias cargadas ('+fmt(suma)+').'
+    : 'Control: las permanencias cargadas suman '+fmt(suma)+' y este mes muestra '+fmt(M.total)+'. La diferencia corresponde a otros meses.';
+  $('resumen').innerHTML='<div class="scroll"><table class="tabla"><thead><tr><th>Día</th><th class="izq">Día de la semana</th><th>Total del día</th><th>'+FRANJAS[0]+'</th><th>'+FRANJAS[1]+'</th><th>'+FRANJAS[2]+'</th></tr></thead><tbody>'+filas+'</tbody><tfoot>'+pie+'</tfoot></table></div><p class="control">'+ctrl+'</p>'+(pendientesDelMes(M).length?'<p class="control"><i class="muestra revisar" style="vertical-align:-3px;margin-right:6px"></i>* Franja nocturna con una permanencia partida por la medianoche: revisar el corte.</p>':'')+cortesHtml(M);
+}
+function renderCalendario(){
+  var box=$('calendario');
+  if(S.records.length===0){ box.innerHTML=vacioHtml(); return; }
+  var M=monthModel(), W=semanas(M), cells='';
+  W.forEach(function(w){
+    w.forEach(function(r){
+      if(!r){cells+='<div class="dia vacio"></div>';return;}
+      var h='<div class="dia"><div class="dia-h">'+DIAS[r.wd]+' '+r.d+'</div>';
+      for(var k=0;k<3;k++){
+        var e=estado(r.f[k]), rv=(k===2&&r.rev), lbl=FRANJAS[k]+', '+fmt(r.f[k])+', '+estadoTxt(e)+(rv?'. Permanencia partida por la medianoche: revisar el corte':'');
+        h+='<div class="fr '+(rv?'revisar':e)+'" title="'+esc(lbl)+'" aria-label="'+esc(lbl)+'"><span>'+FRANJAS[k]+(rv?' *':'')+'</span>'+(S.showTimes?'<span class="t">'+fmtCero(r.f[k])+'</span>':'')+'</div>';
+      }
+      cells+=h+'</div>';
+    });
+  });
+  box.innerHTML=
+    '<div class="leyenda">'+
+      '<span class="item"><i class="muestra rojo"></i>Sin permanencia</span>'+
+      '<span class="item"><i class="muestra amarillo"></i>Menos de '+thrTxt()+' h</span>'+
+      '<span class="item"><i class="muestra verde"></i>'+thrTxt()+' h o más</span>'+
+      (pendientesDelMes(M).length?'<span class="item"><i class="muestra revisar"></i>* Corte por medianoche: revisar</span>':'')+
+      '<label class="opcion"><input type="checkbox" class="chk-tiempos"'+(S.showTimes?' checked':'')+'> Mostrar el tiempo en cada celda</label>'+
+    '</div>'+
+    '<h3 class="cal-titulo">'+MESES[M.m]+' '+M.y+'</h3>'+
+    '<div class="cal-wrap"><div class="cal">'+cells+'</div></div>'+cortesHtml(M);
+}
+
+
+function procesarFilas(filas){
+  S.records=filas.map(function(f){return {a:f.a,b:f.b,n:f.n,extra:f.rest.replace(/\s*\t+\s*/g,' · ').trim()};});
+  S.dist=distribute(S.records);
+  S.cortes=detectarCortes(S.records).list; recalcRev();
+  return [];
+}
+function preview(){
+  var n=S.records.length;
+  var filas=S.records.slice(0,500).map(function(r,i){
+    return '<tr><td>'+(i+1)+'</td><td>'+fmtFechaHora(r.a)+'</td><td>'+fmtFechaHora(r.b)+'</td><td>'+fmt((r.b-r.a)/1000)+'</td></tr>';
+  }).join('');
+  return '<div class="scroll alto"><table class="tabla"><thead><tr><th>N°</th><th>Entrada</th><th>Salida</th><th>Permanencia</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+(n>500?'<p class="control">Se muestran los primeros 500 registros. Todos se usan en el cálculo.</p>':'');
+}
+function avisosCarga(){
+  var msgs=[];
+  if(S.cortes.length){
+    var np=S.cortes.filter(function(c){return estadoCorte(c)==='pendiente';}).length, nt=S.cortes.length;
+    msgs.push('<div class="aviso atencion"><strong>'+nt+(nt===1?' permanencia cruza':' permanencias cruzan')+' la medianoche.</strong> Se reparten entre dos días. '+(np?np+(np===1?' está pendiente de revisión: se marca':' están pendientes de revisión: se marcan')+' en violeta en el resumen y en el calendario, donde podés validar o modificar el corte.':'Todas están revisadas.')+'</div>');
+  }
+  var largos=S.records.filter(function(r){return r.b-r.a>DAY;}).length;
+  if(largos) msgs.push('<div class="aviso atencion">Hay '+largos+(largos===1?' permanencia':' permanencias')+' de más de 24 horas. Conviene revisar que las fechas estén bien cargadas.</div>');
+  return msgs;
+}
+function ayudaHtml(){
+  return 'En el calendario, cada franja se pinta de rojo si no hubo permanencia, de amarillo si hubo menos de '+thrTxt()+' h y de verde si hubo '+thrTxt()+' h o más. Las permanencias que cruzan la medianoche se reparten entre dos días y se marcan en violeta para revisar el corte.';
+}
+function iniciarControles(){
+  var u=$('umbral'); if(!u) return; u.value=String(S.thr);
+  u.addEventListener('input',function(){var v=parseFloat(String(this.value).replace(',','.')); if(v>0){S.thr=v;renderTodo();}});
+}
+function descargaExtraHtml(){return '<label class="opcion"><input type="checkbox" class="chk-tiempos"> Mostrar el tiempo en cada celda del calendario</label>';}
+function sincronizarDescarga(){document.querySelectorAll('.chk-tiempos').forEach(function(c){c.checked=S.showTimes;});}
+function despuesDeRender(){
+  if(S.editando){var el=document.querySelector('.panel:not([hidden]) .ed-a'); if(el&&!(document.activeElement&&document.activeElement.classList.contains('ed'))) el.focus();}
+}
+
+/* ---- Excel ---- */
+async function xlsx(wb,inc,X){
+  var opts={resumen:inc.resumen,calendario:inc.calendario,showTimes:S.showTimes};
+  var M=monthModel(), titulo=VARIABLE+': '+MESES[M.m]+' '+M.y;
+  var borde=X.borde, centro=X.centro, TF=X.TF;
+  if(opts.resumen){
+    var ws=wb.addWorksheet('Resumen');
+    ws.mergeCells('A1:F1'); ws.getCell('A1').value=titulo; ws.getCell('A1').font={bold:true,size:14};
+    var head=['Día','Día de la semana','Total del día',FRANJAS[0],FRANJAS[1],FRANJAS[2]];
+    head.forEach(function(t,i){var c=ws.getCell(3,i+1);c.value=t;c.font={bold:true};c.alignment=Object.assign({wrapText:true},centro);c.border=borde;c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFDFE6EB'}};});
+    M.rows.forEach(function(r,i){
+      var row=4+i, vals=[new Date(Date.UTC(M.y,M.m,r.d)),DIAS[r.wd],r.total/86400,r.f[0]/86400,r.f[1]/86400,r.f[2]/86400];
+      vals.forEach(function(v,j){var c=ws.getCell(row,j+1);c.value=v;c.alignment=centro;c.border=borde;if(j===0)c.numFmt='dd/mm/yyyy';if(j>=2)c.numFmt=TF;
+        if(j===5&&r.rev){c.fill={type:'pattern',pattern:'solid',fgColor:{argb:ARGB.revisar}};c.note='Permanencia partida por la medianoche: revisar el corte';}});
+    });
+    var tr=4+M.rows.length, tv=['Total del mes','',M.total/86400,M.tot[0]/86400,M.tot[1]/86400,M.tot[2]/86400];
+    tv.forEach(function(v,j){var c=ws.getCell(tr,j+1);c.value=v;c.font={bold:true};c.alignment=centro;c.border=borde;c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFDFE6EB'}};if(j>=2)c.numFmt=TF;});
+    ws.mergeCells(tr,1,tr,2);
+    if(pendientesDelMes(M).length){var nc=ws.getCell(tr+2,1);nc.value='Celdas en violeta: franja nocturna con una permanencia partida por la medianoche. Revisar el corte (ver hoja "Cortes a revisar").';nc.font={italic:true,size:9};}
+    [14,18,14,20,20,20].forEach(function(w,i){ws.getColumn(i+1).width=w;});
+    ws.views=[{state:'frozen',ySplit:3}];
+  }
+  if(opts.calendario){
+    var wc=wb.addWorksheet('Calendario');
+    wc.mergeCells('A1:G1'); wc.getCell('A1').value=MESES[M.m]+' '+M.y; wc.getCell('A1').font={bold:true,size:14}; wc.getCell('A1').alignment=centro;
+    for(var c0=1;c0<=7;c0++) wc.getColumn(c0).width=opts.showTimes?30:22;
+    var r0=3, W=semanas(M);
+    W.forEach(function(w){
+      w.forEach(function(r,ci){
+        if(!r) return;
+        var h=wc.getCell(r0,ci+1); h.value=DIAS[r.wd]+' '+r.d; h.font={bold:true}; h.alignment=centro; h.border=borde; h.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFDFE6EB'}};
+        for(var k=0;k<3;k++){
+          var c=wc.getCell(r0+1+k,ci+1), e=estado(r.f[k]);
+          var rv=(k===2&&r.rev);
+          c.value=FRANJAS[k]+(rv?' *':'')+(opts.showTimes?'   '+fmtCero(r.f[k]):'');
+          c.alignment=centro; c.border=borde; c.font={color:{argb:'FF1C2A35'}};
+          c.fill={type:'pattern',pattern:'solid',fgColor:{argb:ARGB[rv?'revisar':e]}};
+        }
+      });
+      r0+=4;
+    });
+    var lg=[['rojo','Rojo: sin permanencia'],['amarillo','Amarillo: menos de '+thrTxt()+' h'],['verde','Verde: '+thrTxt()+' h o más']];
+    if(pendientesDelMes(M).length) lg.push(['revisar','Violeta (*): corte por medianoche, revisar']);
+    lg.forEach(function(x,i){var c=wc.getCell(r0+1,i+1);c.value=x[1];c.alignment=centro;c.border=borde;c.font={color:{argb:'FF1C2A35'}};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:ARGB[x[0]]}};});
+    wc.pageSetup={orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:1};
+  }
+  var CL=cortesDelMes(M), CR=correccionesVisibles();
+  if(CL.length||CR.length){
+    var wr=wb.addWorksheet('Cortes a revisar'), fr0=4;
+    wr.mergeCells('A1:H1'); wr.getCell('A1').value='Cortes por medianoche: '+MESES[M.m]+' '+M.y; wr.getCell('A1').font={bold:true,size:14};
+    wr.mergeCells('A2:H2'); wr.getCell('A2').value=GUIA_CORTES; wr.getCell('A2').alignment={wrapText:true,vertical:'top'}; wr.getRow(2).height=48;
+    var vio={type:'pattern',pattern:'solid',fgColor:{argb:'FFD6CBF7'}};
+    function cab(row,arr){arr.forEach(function(t,i){var c=wr.getCell(row,i+1);c.value=t;c.font={bold:true};c.alignment=Object.assign({wrapText:true},centro);c.border=borde;c.fill=vio;});}
+    if(CL.length){
+      cab(fr0,['Fila pegada','Entrada','Salida','Permanencia','Hasta las 00:00','Desde las 00:00','Estado','Datos adicionales de la fila']);
+      CL.forEach(function(x,i){
+        var vals=[x.n,fmtFechaHora(x.a),fmtFechaHora(x.b),(x.b-x.a)/86400000,x.antes===null?'varios cortes':x.antes/86400,x.despues===null?'varios cortes':x.despues/86400,txtEstado(x),x.extra||''];
+        vals.forEach(function(v,j){var c=wr.getCell(fr0+1+i,j+1);c.value=v;c.border=borde;c.alignment=centro;if(j===3||(j>=4&&j<=5&&typeof v==='number'))c.numFmt='[h]:mm:ss';});
+        if(estadoCorte(x)==='pendiente') wr.getCell(fr0+1+i,7).fill={type:'pattern',pattern:'solid',fgColor:{argb:ARGB.revisar}};
+      });
+      fr0+=CL.length+3;
+    }
+    if(CR.length){
+      wr.getCell(fr0-1,1).value='Correcciones realizadas (los valores originales siguen en el Excel de origen)'; wr.getCell(fr0-1,1).font={bold:true};
+      cab(fr0,['Fila pegada','Entrada original','Salida original','Entrada corregida','Salida corregida','','','Datos adicionales de la fila']);
+      CR.forEach(function(x,i){
+        [x.n,fmtFechaHora(x.origA),fmtFechaHora(x.origB),fmtFechaHora(x.newA),fmtFechaHora(x.newB),'','',x.extra||''].forEach(function(v,j){var c=wr.getCell(fr0+1+i,j+1);c.value=v;c.border=borde;c.alignment=centro;});
+      });
+    }
+    [12,20,20,18,16,16,14,44].forEach(function(w,i){wr.getColumn(i+1).width=w;});
+  }
+
+}
+function pdfResumen(doc,M){
+  var x0=14, y=18, cw=[24,28,28,34,34,34];
+  doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(28,42,53);
+  doc.text(VARIABLE,x0,y);
+  doc.setFontSize(11); doc.setFont('helvetica','normal');
+  doc.text(MESES[M.m]+' '+M.y,x0,y+7);
+  y=32;
+  function fila(vals,h,bold,fill,celdas){
+    var x=x0;
+    vals.forEach(function(v,i){
+      var f=(celdas&&celdas[i])||fill;
+      if(f){doc.setFillColor(f[0],f[1],f[2]);doc.rect(x,y,cw[i],h,'FD');} else doc.rect(x,y,cw[i],h,'S');
+      doc.setFont('helvetica',bold?'bold':'normal');
+      doc.text(String(v),x+cw[i]/2,y+h/2+1.3,{align:'center'});
+      x+=cw[i];
+    });
+    y+=h;
+  }
+  doc.setDrawColor(150,163,174); doc.setLineWidth(0.2); doc.setFontSize(8.5);
+  fila(['Día','Día de la semana','Total del día',FRANJAS[0],FRANJAS[1],FRANJAS[2]],9,true,[223,230,235]);
+  M.rows.forEach(function(r){fila([fmtFecha(M.y,M.m,r.d),DIAS[r.wd],fmtCero(r.total),fmtCero(r.f[0]),fmtCero(r.f[1]),fmtCero(r.f[2])+(r.rev?' *':'')],7,false,null,r.rev?{5:RGB.revisar}:null);});
+  fila(['Total del mes','',fmt(M.total),fmt(M.tot[0]),fmt(M.tot[1]),fmt(M.tot[2])],8,true,[223,230,235]);
+  if(pendientesDelMes(M).length){
+    y+=5; doc.setFont('helvetica','normal'); doc.setFontSize(8);
+    doc.setFillColor(RGB.revisar[0],RGB.revisar[1],RGB.revisar[2]); doc.rect(x0,y-3.2,4.5,4.5,'FD');
+    doc.text('* Franja nocturna con una permanencia partida por la medianoche: revisar el corte.',x0+7,y);
+  }
+}
+function pdfCalendario(doc,M,showTimes){
+  var mx=10, W=semanas(M), cw=(297-2*mx)/7, y=16;
+  doc.setTextColor(28,42,53); doc.setFont('helvetica','bold'); doc.setFontSize(15);
+  doc.text(VARIABLE+': '+MESES[M.m]+' '+M.y,mx,y);
+  y=23; doc.setDrawColor(120,132,142); doc.setLineWidth(0.2);
+  var hh=6, rh=5.6;
+  W.forEach(function(w){
+    w.forEach(function(r,ci){
+      if(!r) return;
+      var x=mx+ci*cw;
+      doc.setFillColor(223,230,235); doc.rect(x,y,cw,hh,'FD');
+      doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(28,42,53);
+      doc.text(DIAS[r.wd]+' '+r.d,x+cw/2,y+hh/2+1.3,{align:'center'});
+      for(var k=0;k<3;k++){
+        var rv=(k===2&&r.rev), e=estado(r.f[k]), yy=y+hh+k*rh, col=RGB[rv?'revisar':e];
+        doc.setFillColor(col[0],col[1],col[2]); doc.rect(x,yy,cw,rh,'FD');
+        doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+        doc.text(FRANJAS[k]+(rv?' *':''),x+2,yy+rh/2+1.1);
+        if(showTimes) doc.text(fmtCero(r.f[k]),x+cw-2,yy+rh/2+1.1,{align:'right'});
+      }
+    });
+    y+=hh+3*rh;
+  });
+  y+=6; doc.setFontSize(8.5); doc.setFont('helvetica','normal');
+  var leyPdf=[['rojo','Sin permanencia'],['amarillo','Menos de '+thrTxt()+' h'],['verde',thrTxt()+' h o mas']];
+  if(pendientesDelMes(M).length) leyPdf.push(['revisar','* Corte por medianoche: revisar']);
+  leyPdf.forEach(function(x,i){
+    var col=RGB[x[0]], px=mx+i*55;
+    doc.setFillColor(col[0],col[1],col[2]); doc.rect(px,y-3.2,4.5,4.5,'FD');
+    doc.text(x[1],px+7,y);
+  });
+}
+function pdfCortes(doc,M){
+  var L=cortesDelMes(M), CR=correccionesVisibles(), mx=10, y=18;
+  function recortar(txt,ancho){var e=txt||'';while(e.length>0&&doc.getTextWidth(e)>ancho-4)e=e.slice(0,-1);if(e.length<(txt||'').length)e=e.slice(0,-1)+'...';return e;}
+  function cabecera(cw,tit){
+    var x=mx; doc.setFontSize(8.5); doc.setFont('helvetica','bold'); doc.setDrawColor(150,163,174); doc.setLineWidth(0.2); doc.setTextColor(28,42,53);
+    tit.forEach(function(t,i){doc.setFillColor(214,203,247);doc.rect(x,y,cw[i],8,'FD');doc.text(t,x+cw[i]/2,y+5,{align:'center'});x+=cw[i];}); y+=8;
+  }
+  function filas(cw,datos,estadoCol){
+    datos.forEach(function(d){
+      if(y>190){doc.addPage('a4','landscape');y=18;}
+      var x=mx; doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(28,42,53);
+      d.forEach(function(v,i){
+        var pend=(i===estadoCol&&v==='Pendiente');
+        if(pend){doc.setFillColor(RGB.revisar[0],RGB.revisar[1],RGB.revisar[2]);doc.rect(x,y,cw[i],7,'FD');} else doc.rect(x,y,cw[i],7,'S');
+        var last=(i===d.length-1), t=recortar(String(v),cw[i]);
+        doc.text(t,last?x+2:x+cw[i]/2,y+4.6,last?{}:{align:'center'}); x+=cw[i];
+      }); y+=7;
+    });
+  }
+  doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(28,42,53);
+  doc.text('Cortes por medianoche: '+MESES[M.m]+' '+M.y,mx,y);
+  doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+  var t=doc.splitTextToSize(GUIA_CORTES,277); doc.text(t,mx,y+6); y+=6+t.length*4+4;
+  if(L.length){
+    var cw=[20,34,34,24,24,24,22,95];
+    cabecera(cw,['Fila pegada','Entrada','Salida','Permanencia','Hasta las 00:00','Desde las 00:00','Estado','Datos adicionales de la fila']);
+    filas(cw,L.map(function(c){return [String(c.n),fmtFechaHora(c.a),fmtFechaHora(c.b),fmt((c.b-c.a)/1000),c.antes===null?'varios':fmt(c.antes),c.despues===null?'varios':fmt(c.despues),txtEstado(c),c.extra||''];}),6);
+  }
+  if(CR.length){
+    y+=8; if(y>175){doc.addPage('a4','landscape');y=18;}
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.text('Correcciones realizadas (los valores originales siguen en el Excel de origen)',mx,y); y+=5;
+    var c2=[20,38,38,38,38,105];
+    cabecera(c2,['Fila pegada','Entrada original','Salida original','Entrada corregida','Salida corregida','Datos adicionales de la fila']);
+    filas(c2,CR.map(function(x){return [String(x.n),fmtFechaHora(x.origA),fmtFechaHora(x.origB),fmtFechaHora(x.newA),fmtFechaHora(x.newB),x.extra||''];}),-1);
+  }
+}
+
+function pdf(ctx,inc){
+  var M=monthModel(), doc;
+  if(inc.resumen){doc=ctx.nueva('portrait');pdfResumen(doc,M);}
+  if(inc.calendario){doc=ctx.nueva('landscape');pdfCalendario(doc,M,S.showTimes);}
+  if(cortesDelMes(M).length||correccionesVisibles().length){doc=ctx.nueva('landscape');pdfCortes(doc,M);}
+}
+
+/* ---- controles de la lista de cortes (validar / modificar / reabrir) ---- */
+document.addEventListener('click',function(ev){
+  var b=ev.target.closest('[data-acc]'); if(!b) return;
+  var acc=b.dataset.acc, tr=b.closest('tr'), key=tr?tr.dataset.key:null;
+  var c=S.cortes.filter(function(x){return x.key===key;})[0];
+  if(acc==='validar'&&c){ S.revisiones[key]={estado:'validado'}; recalcRev(); renderTodo(); banner('Fila '+c.n+' validada: el corte por medianoche es correcto y deja de marcarse en violeta.'); }
+  else if(acc==='reabrir'&&c){ delete S.revisiones[key]; recalcRev(); renderTodo(); banner('Fila '+c.n+' marcada otra vez como pendiente de revisión.'); }
+  else if(acc==='editar'&&c){ S.editando=key; S.errorEdicion=''; S.edTxt=null; renderTodo(); }
+  else if(acc==='cancelar'){ S.editando=null; S.errorEdicion=''; S.edTxt=null; renderTodo(); }
+  else if(acc==='guardar'&&c){
+    var sa=tr.querySelector('.ed-a').value, sb=tr.querySelector('.ed-b').value, a=parseUna(sa), bb=parseUna(sb), err='';
+    S.edTxt={a:sa,b:sb};
+    if(isNaN(a)||isNaN(bb)) err='Escribí las dos fechas como dd/mm/aaaa hh:mm:ss.';
+    else if(bb<a) err='La salida no puede ser anterior a la entrada.';
+    else if(a===c.a&&bb===c.b) err='No hay cambios. Si el corte es correcto, usá Validar.';
+    if(err){ S.errorEdicion=err; renderTodo(); return; }
+    var ta=$('pegado'), lines=ta.value.split(/\r?\n/), L=lines[c.n-1]||'', k=0;
+    lines[c.n-1]=L.replace(RX,function(m){k++;return k===1?fmtFechaHora(a):(k===2?fmtFechaHora(bb):m);});
+    ta.value=lines.join('\n');
+    var nk=a+'|'+bb+'|'+(c.extra||''), prev=S.log.filter(function(x){return x.key===key;})[0];
+    if(prev){prev.key=nk;prev.newA=a;prev.newB=bb;} else S.log.push({key:nk,n:c.n,extra:c.extra,origA:c.a,origB:c.b,newA:a,newB:bb});
+    delete S.revisiones[key]; S.revisiones[nk]={estado:'corregido'};
+    S.editando=null; S.errorEdicion=''; S.edTxt=null;
+    var fila=c.n; procesar();
+    var sigue=S.cortes.some(function(x){return x.key===nk;});
+    banner('Fila '+fila+' corregida. '+(sigue?'Sigue cruzando la medianoche y quedó registrada como corregida.':'Ya no cruza la medianoche.')+' Se actualizó el texto pegado en la solapa 2.');
+  }
+});
+document.addEventListener('keydown',function(ev){
+  var t=ev.target; if(!t.classList||!t.classList.contains('ed')) return;
+  var tr=t.closest('tr');
+  if(ev.key==='Enter'){ev.preventDefault();var g=tr.querySelector('[data-acc="guardar"]');if(g)g.click();}
+  else if(ev.key==='Escape'){ev.preventDefault();var cn=tr.querySelector('[data-acc="cancelar"]');if(cn)cn.click();}
+});
+
+document.addEventListener('change',function(ev){
+  if(ev.target.classList&&ev.target.classList.contains('chk-tiempos')){
+    S.showTimes=ev.target.checked; renderCalendario(); renderDescargas();
+  }
+});
+
+
+function reiniciar(){S.revisiones={};S.log=[];S.editando=null;S.errorEdicion='';S.edTxt=null;}
+
+return {
+  id:'permanencia', nombre:VARIABLE, archivo:'permanencia',
+  tabResumen:'Resumen por franja', tabCalendario:'Calendario',
+  ayudaCarga:'Copiá las dos columnas de tu Excel (fecha de entrada y fecha de salida) y pegalas acá. Si copiás también las columnas siguientes (visitante, DNI), se muestran en la lista de cortes para identificar cada fila. El formato esperado es dd/mm/aaaa hh:mm:ss. Los datos se procesan en tu navegador.',
+  etiquetaPegado:'Fecha de entrada y fecha de salida',
+  placeholder:'23/09/2026 14:10:22\t23/09/2026 14:36:51\n23/09/2026 22:58:36\t24/09/2026 00:13:09',
+  botonResumen:'Ver resumen por franja',
+  etiqueta:['registro válido','registros válidos'], palabraOtros:'permanencias',
+  mensajeVacio:'No se encontraron registros. Revisá que estés pegando las dos columnas de fecha y hora.',
+  controlesHtml:'<label>Umbral para verde (horas)<input id="umbral" type="number" min="0.25" step="0.25" value="3"></label>',
+  iniciarControles:iniciarControles, ayudaHtml:ayudaHtml,
+  procesar:procesarFilas, n:function(){return S.records.length;}, hayDatos:function(){return S.records.length>0;},
+  estadoTxt:function(){var n=S.records.length;return n===0?'sin registros cargados.':n+(n===1?' registro cargado.':' registros cargados.');},
+  mesesConDatos:function(){return segundosPorMes(S.dist);},
+  avisosCarga:avisosCarga, preview:preview,
+  renderResumen:renderResumen, renderCalendario:renderCalendario,
+  secciones:[{id:'resumen',label:'Resumen por franja (solapa 3)'},{id:'calendario',label:'Calendario con colores (solapa 4)'}],
+  descargaExtraHtml:descargaExtraHtml, sincronizarDescarga:sincronizarDescarga, despuesDeRender:despuesDeRender,
+  xlsx:xlsx, pdf:pdf, reiniciar:reiniciar,
+  _S:S, _monthModel:monthModel, _cortesDelMes:cortesDelMes, _estadoCorte:estadoCorte, _pendientesDelMes:pendientesDelMes
+};
+})();
+VARS.permanencia=PERM;
+
+/* =====================================================================
+   VARIABLE 2: Cantidad de visitas por supervisor (mensual y semanal)
+   Una visita = un registro (entrada y salida). Se cuenta en el mes y en
+   la semana (lunes a domingo) de su entrada, con su permanencia completa.
+   ===================================================================== */
+var VIS=(function(){
+var NOMBRE='Cantidad de visitas por supervisor (mensual y semanal)';
+var S={visitas:[],total:0};
+
+function procesarFilas(filas){
+  var issues=[]; S.visitas=[]; S.total=filas.length;
+  filas.forEach(function(f){
+    var p=leerSupervisor(f.rest);
+    if(!p){issues.push('Fila '+f.n+': falta el nombre del supervisor (tercera columna).');return;}
+    S.visitas.push({a:f.a,b:f.b,n:f.n,nombre:p.nombre,dni:p.dni,key:p.key});
+  });
+  return issues;
+}
+function mesesConDatos(){
+  var out=new Map();
+  S.visitas.forEach(function(v){var d=new Date(v.a),k=d.getUTCFullYear()*12+d.getUTCMonth();out.set(k,(out.get(k)||0)+1);});
+  return out;
+}
+function corta(d,m){return pad2(d)+'/'+pad2(m+1);}
+function modelo(){
+  var y=state.year, m=state.month, n=new Date(Date.UTC(y,m+1,0)).getUTCDate();
+  var fw=(new Date(Date.UTC(y,m,1)).getUTCDay()+6)%7, nSem=Math.ceil((n+fw)/7), semanas=[];
+  for(var w=0;w<nSem;w++) semanas.push({n:w+1,ini:Math.max(1,w*7-fw+1),fin:Math.min(n,(w+1)*7-fw)});
+  var map=new Map(), delMes=0;
+  S.visitas.forEach(function(v){
+    var d=new Date(v.a); if(d.getUTCFullYear()!==y||d.getUTCMonth()!==m) return;
+    delMes++;
+    var s=map.get(v.key);
+    if(!s){s={nombre:v.nombre,dni:v.dni,vis:0,seg:0,dias:new Map(),sem:semanas.map(function(){return {v:0,s:0};})};map.set(v.key,s);}
+    var dia=d.getUTCDate(); s.dias.set(dia,(s.dias.get(dia)||0)+(v.b-v.a)/1000);
+    if(!s.dni&&v.dni) s.dni=v.dni;
+  });
+  /* una visita por supervisor y por día: varios ingresos del mismo día cuentan como 1, con la suma de sus tiempos */
+  map.forEach(function(s){ s.dias.forEach(function(dur,dia){ var w=Math.floor((dia-1+fw)/7); s.vis++; s.seg+=dur; s.sem[w].v++; s.sem[w].s+=dur; }); });
+  var filas=Array.from(map.values()).sort(function(a,b){return a.nombre.localeCompare(b.nombre,'es');});
+  var tot={vis:0,seg:0,sem:semanas.map(function(){return {v:0,s:0};})};
+  filas.forEach(function(s){tot.vis+=s.vis;tot.seg+=s.seg;s.sem.forEach(function(x,i){tot.sem[i].v+=x.v;tot.sem[i].s+=x.s;});});
+  return {y:y,m:m,n:n,semanas:semanas,filas:filas,tot:tot,cargadas:S.visitas.length,delMes:delMes};
+}
+function prom(seg,v){return v?fmt(seg/v):'-';}
+function cnt(v){return v?String(v):'-';}
+
+function renderResumen(){
+  var M=modelo();
+  $('lead-3').textContent='Cantidad de visitas por supervisor, '+MESES[M.m].toLowerCase()+' '+M.y+'. Cada supervisor cuenta una sola visita por día, aunque haya ingresado varias veces, y su tiempo es la suma de todos sus ingresos de ese día.';
+  if(!M.filas.length){ $('resumen').innerHTML='<div class="aviso atencion">No hay visitas con entrada en '+MESES[M.m].toLowerCase()+' '+M.y+'.</div>'; return; }
+  var f1=M.filas.map(function(s){return '<tr><td class="izq">'+esc(s.nombre)+'</td><td>'+esc(s.dni||'-')+'</td><td>'+s.vis+'</td><td>'+fmt(s.seg)+'</td><td>'+prom(s.seg,s.vis)+'</td></tr>';}).join('');
+  var p1='<tr><td class="izq" colspan="2">Total del mes</td><td>'+M.tot.vis+'</td><td>'+fmt(M.tot.seg)+'</td><td>'+prom(M.tot.seg,M.tot.vis)+'</td></tr>';
+  var h1='<tr>'+M.semanas.map(function(w){return '<th colspan="2" class="sep">Semana '+w.n+'<small>'+corta(w.ini,M.m)+' al '+corta(w.fin,M.m)+'</small></th>';}).join('')+'<th colspan="2" class="sep">Total del mes</th></tr>';
+  var h2='<tr>'+M.semanas.map(function(){return '<th class="sep">Visitas</th><th>Tiempo</th>';}).join('')+'<th class="sep">Visitas</th><th>Tiempo</th></tr>';
+  var f2=M.filas.map(function(s){return '<tr><td class="izq">'+esc(s.nombre)+'</td>'+s.sem.map(function(x){return '<td class="sep">'+cnt(x.v)+'</td><td>'+fmtCero(x.s)+'</td>';}).join('')+'<td class="sep">'+s.vis+'</td><td>'+fmt(s.seg)+'</td></tr>';}).join('');
+  var p2='<tr><td class="izq">Total</td>'+M.tot.sem.map(function(x){return '<td class="sep">'+cnt(x.v)+'</td><td>'+fmtCero(x.s)+'</td>';}).join('')+'<td class="sep">'+M.tot.vis+'</td><td>'+fmt(M.tot.seg)+'</td></tr>';
+  var otros=M.cargadas-M.delMes;
+  $('resumen').innerHTML=
+    '<h3 class="subtitulo">Resumen mensual</h3>'+
+    '<div class="scroll"><table class="tabla"><thead><tr><th class="izq">Supervisor</th><th>DNI</th><th>Cantidad de visitas</th><th>Tiempo total de visita</th><th>Tiempo promedio por visita</th></tr></thead><tbody>'+f1+'</tbody><tfoot>'+p1+'</tfoot></table></div>'+
+    '<h3 class="subtitulo">Resumen semanal (de lunes a domingo)</h3>'+
+    '<div class="scroll"><table class="tabla"><thead><tr><th class="izq" rowspan="2">Supervisor</th>'+h1.slice(4)+h2+'</thead><tbody>'+f2+'</tbody><tfoot>'+p2+'</tfoot></table></div>'+
+    '<p class="control">Control: se cargaron '+M.cargadas+(M.cargadas===1?' ingreso':' ingresos')+'; '+M.delMes+(M.delMes===1?' tiene':' tienen')+' la entrada en este mes'+(otros?' (los otros '+otros+' son de otros meses)':'')+' y equivalen a '+M.tot.vis+(M.tot.vis===1?' visita':' visitas')+'. Varios ingresos del mismo supervisor en un día cuentan como una sola visita. La primera y la última semana pueden quedar incompletas.</p>';
+}
+function preview(){
+  var n=S.visitas.length;
+  var filas=S.visitas.slice(0,500).map(function(v){
+    return '<tr><td>'+v.n+'</td><td>'+fmtFechaHora(v.a)+'</td><td>'+fmtFechaHora(v.b)+'</td><td class="izq">'+esc(v.nombre)+'</td><td>'+esc(v.dni||'-')+'</td><td>'+fmt((v.b-v.a)/1000)+'</td></tr>';
+  }).join('');
+  return '<div class="scroll alto"><table class="tabla"><thead><tr><th>Fila</th><th>Entrada</th><th>Salida</th><th class="izq">Supervisor</th><th>DNI</th><th>Tiempo del ingreso</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+(n>500?'<p class="control">Se muestran los primeros 500 ingresos. Todos se usan en el cálculo.</p>':'');
+}
+function avisosCarga(){
+  if(S.total>0&&S.visitas.length===0) return ['<div class="aviso atencion">Para esta variable hace falta pegar también el supervisor (visitante) y el DNI, en la tercera y cuarta columna.</div>'];
+  return [];
+}
+
+/* ---- Excel ---- */
+async function xlsx(wb,inc,X){
+  if(!inc.resumen) return;
+  var M=modelo(), borde=X.borde, centro=X.centro, TF=X.TF, titulo=NOMBRE+': '+MESES[M.m]+' '+M.y;
+  function cab(ws,r,c,t){var x=ws.getCell(r,c);x.value=t;x.font={bold:true};x.alignment=Object.assign({wrapText:true},centro);x.border=borde;x.fill=X.gris;return x;}
+  function cel(ws,r,c,v,fmtN,bold){var x=ws.getCell(r,c);x.value=v;x.alignment=c===1?{horizontal:'left',vertical:'middle'}:centro;x.border=borde;if(fmtN)x.numFmt=fmtN;if(bold){x.font={bold:true};x.fill=X.gris;}return x;}
+  var w1=wb.addWorksheet('Resumen mensual');
+  w1.mergeCells('A1:E1'); w1.getCell('A1').value=titulo; w1.getCell('A1').font={bold:true,size:14};
+  ['Supervisor','DNI','Cantidad de visitas','Tiempo total de visita','Tiempo promedio por visita'].forEach(function(t,i){cab(w1,3,i+1,t);});
+  M.filas.forEach(function(s,i){var r=4+i; cel(w1,r,1,s.nombre); cel(w1,r,2,s.dni||'-'); cel(w1,r,3,s.vis,'0'); cel(w1,r,4,s.seg/86400,TF); cel(w1,r,5,s.vis?s.seg/s.vis/86400:0,TF);});
+  var t1=4+M.filas.length;
+  cel(w1,t1,1,'Total del mes',null,true); cel(w1,t1,2,'',null,true); cel(w1,t1,3,M.tot.vis,'0',true); cel(w1,t1,4,M.tot.seg/86400,TF,true); cel(w1,t1,5,M.tot.vis?M.tot.seg/M.tot.vis/86400:0,TF,true);
+  [34,14,18,22,24].forEach(function(w,i){w1.getColumn(i+1).width=w;});
+  var w2=wb.addWorksheet('Resumen semanal'), nc=1+2*(M.semanas.length+1);
+  w2.mergeCells(1,1,1,nc); w2.getCell('A1').value=titulo+' (semanas de lunes a domingo)'; w2.getCell('A1').font={bold:true,size:14};
+  cab(w2,3,1,'Supervisor'); cab(w2,4,1,''); w2.mergeCells(3,1,4,1);
+  M.semanas.forEach(function(w,i){var c=2+2*i; cab(w2,3,c,'Semana '+w.n+' ('+corta(w.ini,M.m)+' al '+corta(w.fin,M.m)+')'); cab(w2,3,c+1,''); w2.mergeCells(3,c,3,c+1); cab(w2,4,c,'Visitas'); cab(w2,4,c+1,'Tiempo');});
+  var ct=2+2*M.semanas.length; cab(w2,3,ct,'Total del mes'); cab(w2,3,ct+1,''); w2.mergeCells(3,ct,3,ct+1); cab(w2,4,ct,'Visitas'); cab(w2,4,ct+1,'Tiempo');
+  M.filas.forEach(function(s,i){var r=5+i; cel(w2,r,1,s.nombre); s.sem.forEach(function(x,j){cel(w2,r,2+2*j,x.v,'0;-0;"-"'); cel(w2,r,3+2*j,x.s/86400,TF);}); cel(w2,r,ct,s.vis,'0'); cel(w2,r,ct+1,s.seg/86400,TF);});
+  var t2=5+M.filas.length; cel(w2,t2,1,'Total',null,true);
+  M.tot.sem.forEach(function(x,j){cel(w2,t2,2+2*j,x.v,'0;-0;"-"',true); cel(w2,t2,3+2*j,x.s/86400,TF,true);}); cel(w2,t2,ct,M.tot.vis,'0',true); cel(w2,t2,ct+1,M.tot.seg/86400,TF,true);
+  w2.getColumn(1).width=34; for(var c=2;c<=nc;c++) w2.getColumn(c).width=13;
+  w2.views=[{state:'frozen',xSplit:1,ySplit:4}];
+}
+
+/* ---- PDF ---- */
+function pdf(ctx,inc){
+  if(!inc.resumen) return;
+  var M=modelo(), doc=ctx.nueva('landscape'), mx=10;
+  doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(28,42,53);
+  doc.text(NOMBRE+': '+MESES[M.m]+' '+M.y,mx,16);
+  doc.setFontSize(11); doc.text('Resumen mensual',mx,25);
+  var y=pdfGrid(doc,28,[110,32,30,50,55],[['Supervisor','DNI','Cantidad de visitas','Tiempo total de visita','Tiempo promedio por visita']],
+    M.filas.map(function(s){return [s.nombre,s.dni||'-',String(s.vis),fmt(s.seg),prom(s.seg,s.vis)];}),
+    ['Total del mes','',String(M.tot.vis),fmt(M.tot.seg),prom(M.tot.seg,M.tot.vis)]);
+  y+=10; if(y>150){doc.addPage('a4','landscape');y=16;}
+  doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(28,42,53);
+  doc.text('Resumen semanal (de lunes a domingo)',mx,y); y+=3;
+  var k=M.semanas.length+1, first=62, wcol=(277-first)/(2*k), cw=[first];
+  for(var i=0;i<2*k;i++) cw.push(wcol);
+  var row1=[''], row2=['Supervisor'];
+  M.semanas.forEach(function(w){row1.push({t:'Sem. '+w.n+' ('+corta(w.ini,M.m)+' al '+corta(w.fin,M.m)+')',span:2}); row2.push('Visitas','Tiempo');});
+  row1.push({t:'Total del mes',span:2}); row2.push('Visitas','Tiempo');
+  var body=M.filas.map(function(s){var r=[s.nombre]; s.sem.forEach(function(x){r.push(cnt(x.v),fmtCero(x.s));}); r.push(String(s.vis),fmt(s.seg)); return r;});
+  var foot=['Total']; M.tot.sem.forEach(function(x){foot.push(cnt(x.v),fmtCero(x.s));}); foot.push(String(M.tot.vis),fmt(M.tot.seg));
+  pdfGrid(doc,y,cw,[row1,row2],body,foot);
+}
+
+return {
+  id:'visitas', nombre:NOMBRE, archivo:'visitas_supervisor',
+  tabResumen:'Visitas por supervisor', tabCalendario:null,
+  ayudaCarga:'Copiá las cuatro columnas de tu Excel (fecha de entrada, fecha de salida, supervisor y DNI) y pegalas acá. El formato de fecha esperado es dd/mm/aaaa hh:mm:ss. Los datos se procesan en tu navegador.',
+  etiquetaPegado:'Fecha de entrada, fecha de salida, supervisor y DNI',
+  placeholder:'23/09/2026 14:10:22\t23/09/2026 14:36:51\tAPELLIDO, NOMBRE\t12345678',
+  botonResumen:'Ver visitas por supervisor',
+  etiqueta:['ingreso válido','ingresos válidos'], palabraOtros:'ingresos',
+  mensajeVacio:'No se encontraron ingresos. Revisá que estés pegando fecha de entrada, fecha de salida, supervisor y DNI.',
+  ayudaHtml:function(){return 'Cada supervisor cuenta una sola visita por día: si ingresa varias veces el mismo día, es una visita y su tiempo es la suma de todos sus ingresos de ese día. Se cuentan los días cuya entrada cae en el mes elegido. Las semanas van de lunes a domingo, así que la primera y la última pueden quedar incompletas.';},
+  procesar:procesarFilas, n:function(){return S.visitas.length;}, hayDatos:function(){return S.visitas.length>0;},
+  estadoTxt:function(){var n=S.visitas.length;return n===0?'sin ingresos cargados.':n+(n===1?' ingreso cargado.':' ingresos cargados.');},
+  mesesConDatos:mesesConDatos, avisosCarga:avisosCarga, preview:preview,
+  renderResumen:renderResumen, renderCalendario:null,
+  secciones:[{id:'resumen',label:'Resumen mensual y semanal (solapa 3)'}],
+  xlsx:xlsx, pdf:pdf,
+  _modelo:modelo, _S:S
+};
+})();
+VARS.visitas=VIS;
+
+
+/* =====================================================================
+   VARIABLE 3: Cantidad de visitas por franja horaria
+   Cada visita se cuenta una sola vez, en la franja y en el día de su
+   hora de entrada. Calendario con colores según la cantidad de visitas.
+   ===================================================================== */
+var FRA=(function(){
+var NOMBRE='Cantidad de visitas por franja horaria';
+var FRANJAS=['06:00 - 14:00 hs.','14:00 - 22:00 hs.','22:00 - 06:00 hs.'];
+var S={visitas:[],total:0,thr:2,sup:''};
+var NOTA_TOTAL='El total del día cuenta a cada supervisor una sola vez; si estuvo en dos franjas el mismo día, figura en ambas franjas.';
+
+function franjaDe(ms){var h=new Date(ms).getUTCHours();return h>=6&&h<14?0:(h>=14&&h<22?1:2);}
+function procesarFilas(filas){
+  var issues=[]; S.visitas=[]; S.total=filas.length;
+  filas.forEach(function(f){
+    var p=leerSupervisor(f.rest);
+    if(!p){issues.push('Fila '+f.n+': falta el nombre del supervisor (tercera columna).');return;}
+    S.visitas.push({a:f.a,b:f.b,n:f.n,nombre:p.nombre,dni:p.dni,key:p.key});
+  });
+  if(S.sup&&!S.visitas.some(function(v){return v.key===S.sup;})) S.sup='';
+  return issues;
+}
+function mesesConDatos(){
+  var out=new Map();
+  S.visitas.forEach(function(v){var d=new Date(v.a),k=d.getUTCFullYear()*12+d.getUTCMonth();out.set(k,(out.get(k)||0)+1);});
+  return out;
+}
+function supervisores(){
+  var map=new Map(); S.visitas.forEach(function(v){if(!map.has(v.key))map.set(v.key,v.nombre);});
+  return Array.from(map.entries()).sort(function(a,b){return a[1].localeCompare(b[1],'es');});
+}
+function nombreSup(){var r=supervisores().filter(function(x){return x[0]===S.sup;})[0];return r?r[1]:'';}
+function modelo(){
+  var y=state.year, m=state.month, n=new Date(Date.UTC(y,m+1,0)).getUTCDate(), rows=[], tot=[0,0,0], totalMes=0, delMes=0, filtradas=0, sets=[];
+  for(var d=1;d<=n;d++){ rows.push({d:d,wd:(new Date(Date.UTC(y,m,d)).getUTCDay()+6)%7,f:[0,0,0],total:0}); sets.push({s:new Set(),f:[new Set(),new Set(),new Set()]}); }
+  S.visitas.forEach(function(v){
+    var dt=new Date(v.a); if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==m) return;
+    delMes++;
+    if(S.sup&&v.key!==S.sup) return;
+    filtradas++;
+    var q=sets[dt.getUTCDate()-1], k=franjaDe(v.a); q.s.add(v.key); q.f[k].add(v.key);
+  });
+  /* un supervisor cuenta una vez por día (total del día) y una vez por franja: varios ingresos en la misma franja del mismo día son 1 */
+  rows.forEach(function(r,i){ var q=sets[i]; r.total=q.s.size; for(var k=0;k<3;k++){r.f[k]=q.f[k].size;tot[k]+=r.f[k];} totalMes+=r.total; });
+  return {y:y,m:m,n:n,rows:rows,tot:tot,total:totalMes,delMes:delMes,contadas:filtradas,cargadas:S.visitas.length};
+}
+function semanas(M){
+  var weeks=[], cur=new Array(7).fill(null);
+  M.rows.forEach(function(r){cur[r.wd]=r; if(r.wd===6){weeks.push(cur);cur=new Array(7).fill(null);}});
+  if(cur.some(function(x){return x;})) weeks.push(cur);
+  return weeks;
+}
+function est(n){return n===0?'rojo':(n<S.thr?'amarillo':'verde');}
+function plural(n){return n+(n===1?' visita':' visitas');}
+function estTxt(e){
+  return e==='rojo'?'sin visitas':(e==='amarillo'?(S.thr===2?'1 visita':'de 1 a '+(S.thr-1)+' visitas'):S.thr+' o más visitas');
+}
+function titulo(M){return NOMBRE+': '+MESES[M.m]+' '+M.y+(S.sup?' · '+nombreSup():'');}
+function selectorHtml(){
+  var opts='<option value="">Todos los supervisores</option>'+supervisores().map(function(x){return '<option value="'+esc(x[0])+'"'+(x[0]===S.sup?' selected':'')+'>'+esc(x[1])+'</option>';}).join('');
+  return '<div class="campos" style="margin-bottom:18px"><label>Supervisor<select class="sel-sup">'+opts+'</select></label></div>';
+}
+function ayudaHtml(){
+  var n=S.thr;
+  return 'En el calendario, cada franja se pinta de rojo si no hubo visitas, '+(n>1?'de amarillo si hubo '+(n===2?'una sola visita':'menos de '+n+' visitas')+' y ':'')+'de verde si hubo '+n+(n===1?' visita o más':' visitas o más')+'. Cada supervisor cuenta una sola visita por franja y por día, aunque haya ingresado varias veces en esa franja; la franja se toma por la hora de entrada. Después, en las solapas 3 y 4, podés ver todos los supervisores juntos o elegir uno.';
+}
+function iniciarControles(){
+  var u=$('umbral-vis'); if(!u) return; u.value=String(S.thr);
+  u.addEventListener('input',function(){var v=parseInt(this.value,10); if(v>=1){S.thr=v;renderTodo();}});
+}
+
+function renderResumen(){
+  var M=modelo();
+  $('lead-3').textContent=NOMBRE+', '+MESES[M.m].toLowerCase()+' '+M.y+(S.sup?', supervisor '+nombreSup():', todos los supervisores')+'. Cada supervisor cuenta una sola visita por franja y por día, según la hora de su entrada.';
+  function c(n){return '<td'+(n===0?' class="cero"':'')+'>'+(n===0?'-':n)+'</td>';}
+  var filas=M.rows.map(function(r){return '<tr><td>'+fmtFecha(M.y,M.m,r.d)+'</td><td class="izq">'+DIAS[r.wd]+'</td>'+c(r.total)+c(r.f[0])+c(r.f[1])+c(r.f[2])+'</tr>';}).join('');
+  var pie='<tr><td class="izq" colspan="2">Total del mes</td><td>'+M.total+'</td><td>'+M.tot[0]+'</td><td>'+M.tot[1]+'</td><td>'+M.tot[2]+'</td></tr>';
+  var otros=M.cargadas-M.delMes;
+  $('resumen').innerHTML=selectorHtml()+
+    '<div class="scroll"><table class="tabla"><thead><tr><th>Día</th><th class="izq">Día de la semana</th><th>Total del día</th><th>'+FRANJAS[0]+'</th><th>'+FRANJAS[1]+'</th><th>'+FRANJAS[2]+'</th></tr></thead><tbody>'+filas+'</tbody><tfoot>'+pie+'</tfoot></table></div>'+
+    '<p class="control">Control: se cargaron '+M.cargadas+(M.cargadas===1?' ingreso':' ingresos')+'; '+M.delMes+(M.delMes===1?' tiene':' tienen')+' la entrada en este mes'+(otros?' (los otros '+otros+' son de otros meses)':'')+(S.sup?' y '+M.contadas+(M.contadas===1?' es':' son')+' de '+esc(nombreSup())+'.':'.')+' '+NOTA_TOTAL+'</p>';
+}
+function renderCalendario(){
+  var M=modelo(), W=semanas(M), cells='';
+  W.forEach(function(w){
+    w.forEach(function(r){
+      if(!r){cells+='<div class="dia vacio"></div>';return;}
+      var h='<div class="dia"><div class="dia-h">'+DIAS[r.wd]+' '+r.d+'</div>';
+      for(var k=0;k<3;k++){
+        var e=est(r.f[k]), lbl=FRANJAS[k]+', '+plural(r.f[k])+', '+estTxt(e);
+        h+='<div class="fr '+e+'" title="'+esc(lbl)+'" aria-label="'+esc(lbl)+'"><span>'+FRANJAS[k]+'</span><span class="t">'+r.f[k]+'</span></div>';
+      }
+      cells+=h+'</div>';
+    });
+  });
+  $('calendario').innerHTML=selectorHtml()+
+    '<div class="leyenda">'+
+      '<span class="item"><i class="muestra rojo"></i>Sin visitas</span>'+
+      (S.thr>1?'<span class="item"><i class="muestra amarillo"></i>'+(S.thr===2?'1 visita':'De 1 a '+(S.thr-1)+' visitas')+'</span>':'')+
+      '<span class="item"><i class="muestra verde"></i>'+S.thr+(S.thr===1?' visita o más':' visitas o más')+'</span>'+
+    '</div>'+
+    '<h3 class="cal-titulo">'+MESES[M.m]+' '+M.y+(S.sup?' · '+esc(nombreSup()):'')+'</h3>'+
+    '<div class="cal-wrap"><div class="cal">'+cells+'</div></div>';
+}
+function preview(){
+  var n=S.visitas.length;
+  var filas=S.visitas.slice(0,500).map(function(v){
+    return '<tr><td>'+v.n+'</td><td>'+fmtFechaHora(v.a)+'</td><td>'+fmtFechaHora(v.b)+'</td><td class="izq">'+esc(v.nombre)+'</td><td>'+esc(v.dni||'-')+'</td><td>'+FRANJAS[franjaDe(v.a)]+'</td></tr>';
+  }).join('');
+  return '<div class="scroll alto"><table class="tabla"><thead><tr><th>Fila</th><th>Entrada</th><th>Salida</th><th class="izq">Supervisor</th><th>DNI</th><th>Franja de la visita</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+(n>500?'<p class="control">Se muestran los primeros 500 ingresos. Todos se usan en el cálculo.</p>':'');
+}
+function avisosCarga(){
+  if(S.total>0&&S.visitas.length===0) return ['<div class="aviso atencion">Para esta variable hace falta pegar también el supervisor (visitante) y el DNI, en la tercera y cuarta columna.</div>'];
+  return [];
+}
+
+/* ---- Excel ---- */
+async function xlsx(wb,inc,X){
+  var M=modelo(), borde=X.borde, centro=X.centro, tit=titulo(M), NF='0;-0;"-"';
+  if(inc.resumen){
+    var ws=wb.addWorksheet('Resumen');
+    ws.mergeCells('A1:F1'); ws.getCell('A1').value=tit; ws.getCell('A1').font={bold:true,size:14};
+    ['Día','Día de la semana','Total del día',FRANJAS[0],FRANJAS[1],FRANJAS[2]].forEach(function(t,i){var c=ws.getCell(3,i+1);c.value=t;c.font={bold:true};c.alignment=Object.assign({wrapText:true},centro);c.border=borde;c.fill=X.gris;});
+    M.rows.forEach(function(r,i){
+      [new Date(Date.UTC(M.y,M.m,r.d)),DIAS[r.wd],r.total,r.f[0],r.f[1],r.f[2]].forEach(function(v,j){var c=ws.getCell(4+i,j+1);c.value=v;c.alignment=centro;c.border=borde;if(j===0)c.numFmt='dd/mm/yyyy';if(j>=2)c.numFmt=NF;});
+    });
+    var tr=4+M.rows.length;
+    ['Total del mes','',M.total,M.tot[0],M.tot[1],M.tot[2]].forEach(function(v,j){var c=ws.getCell(tr,j+1);c.value=v;c.font={bold:true};c.alignment=centro;c.border=borde;c.fill=X.gris;if(j>=2)c.numFmt='0';});
+    ws.mergeCells(tr,1,tr,2);
+    [14,18,14,20,20,20].forEach(function(w,i){ws.getColumn(i+1).width=w;});
+    ws.getCell(tr+2,1).value=NOTA_TOTAL; ws.getCell(tr+2,1).font={italic:true,size:9};
+    ws.views=[{state:'frozen',ySplit:3}];
+  }
+  if(inc.calendario){
+    var wc=wb.addWorksheet('Calendario');
+    wc.mergeCells('A1:G1'); wc.getCell('A1').value=tit; wc.getCell('A1').font={bold:true,size:14}; wc.getCell('A1').alignment=centro;
+    for(var c0=1;c0<=7;c0++) wc.getColumn(c0).width=26;
+    var r0=3;
+    semanas(M).forEach(function(w){
+      w.forEach(function(r,ci){
+        if(!r) return;
+        var h=wc.getCell(r0,ci+1); h.value=DIAS[r.wd]+' '+r.d; h.font={bold:true}; h.alignment=centro; h.border=borde; h.fill=X.gris;
+        for(var k=0;k<3;k++){
+          var c=wc.getCell(r0+1+k,ci+1), e=est(r.f[k]);
+          c.value=FRANJAS[k]+'   '+r.f[k]; c.alignment=centro; c.border=borde; c.font={color:{argb:'FF1C2A35'}};
+          c.fill={type:'pattern',pattern:'solid',fgColor:{argb:ARGB[e]}};
+        }
+      });
+      r0+=4;
+    });
+    var lg=[['rojo','Rojo: sin visitas']]; if(S.thr>1) lg.push(['amarillo','Amarillo: '+(S.thr===2?'1 visita':'de 1 a '+(S.thr-1)+' visitas')]); lg.push(['verde','Verde: '+S.thr+(S.thr===1?' visita o más':' visitas o más')]);
+    lg.forEach(function(x,i){var c=wc.getCell(r0+1,i+1);c.value=x[1];c.alignment=centro;c.border=borde;c.font={color:{argb:'FF1C2A35'}};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:ARGB[x[0]]}};});
+    wc.pageSetup={orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:1};
+  }
+}
+
+/* ---- PDF ---- */
+function pdf(ctx,inc){
+  var M=modelo(), doc;
+  if(inc.resumen){
+    doc=ctx.nueva('portrait');
+    doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(28,42,53); doc.text(titulo(M),14,18);
+    var yf=pdfGrid(doc,26,[26,30,30,32,32,32],[['Día','Día de la semana','Total del día',FRANJAS[0],FRANJAS[1],FRANJAS[2]]],
+      M.rows.map(function(r){return [fmtFecha(M.y,M.m,r.d),DIAS[r.wd],r.total?String(r.total):'-',r.f[0]?String(r.f[0]):'-',r.f[1]?String(r.f[1]):'-',r.f[2]?String(r.f[2]):'-'];}),
+      ['Total del mes','',String(M.total),String(M.tot[0]),String(M.tot[1]),String(M.tot[2])],
+      {x0:14,orient:'portrait',maxY:285,top:18});
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.text(doc.splitTextToSize(NOTA_TOTAL,182),14,yf+6);
+  }
+  if(inc.calendario){
+    doc=ctx.nueva('landscape');
+    var mx=10, cw=(297-2*mx)/7, y=23, hh=6, rh=5.6;
+    doc.setTextColor(28,42,53); doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.text(titulo(M),mx,16);
+    doc.setDrawColor(120,132,142); doc.setLineWidth(0.2);
+    semanas(M).forEach(function(w){
+      w.forEach(function(r,ci){
+        if(!r) return;
+        var x=mx+ci*cw;
+        doc.setFillColor(223,230,235); doc.rect(x,y,cw,hh,'FD');
+        doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(28,42,53);
+        doc.text(DIAS[r.wd]+' '+r.d,x+cw/2,y+hh/2+1.3,{align:'center'});
+        for(var k=0;k<3;k++){
+          var e=est(r.f[k]), yy=y+hh+k*rh, col=RGB[e];
+          doc.setFillColor(col[0],col[1],col[2]); doc.rect(x,yy,cw,rh,'FD');
+          doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+          doc.text(FRANJAS[k],x+2,yy+rh/2+1.1);
+          doc.setFont('helvetica','bold'); doc.text(String(r.f[k]),x+cw-2,yy+rh/2+1.1,{align:'right'});
+        }
+      });
+      y+=hh+3*rh;
+    });
+    y+=6; doc.setFontSize(8.5); doc.setFont('helvetica','normal');
+    var ley=[['rojo','Sin visitas']]; if(S.thr>1) ley.push(['amarillo',S.thr===2?'1 visita':'De 1 a '+(S.thr-1)+' visitas']); ley.push(['verde',S.thr+(S.thr===1?' visita o mas':' visitas o mas')]);
+    ley.forEach(function(x,i){var col=RGB[x[0]], px=mx+i*55; doc.setFillColor(col[0],col[1],col[2]); doc.rect(px,y-3.2,4.5,4.5,'FD'); doc.text(x[1],px+7,y);});
+  }
+}
+
+document.addEventListener('change',function(ev){
+  var t=ev.target; if(!t.classList||!t.classList.contains('sel-sup')||state.varId!=='franjas') return;
+  S.sup=t.value; renderTodo();
+});
+
+return {
+  id:'franjas', nombre:NOMBRE, archivo:'visitas_por_franja',
+  tabResumen:'Visitas por día y franja', tabCalendario:'Calendario',
+  ayudaCarga:'Copiá las cuatro columnas de tu Excel (fecha de entrada, fecha de salida, supervisor y DNI) y pegalas acá. El formato de fecha esperado es dd/mm/aaaa hh:mm:ss. Los datos se procesan en tu navegador.',
+  etiquetaPegado:'Fecha de entrada, fecha de salida, supervisor y DNI',
+  placeholder:'23/09/2026 14:10:22\t23/09/2026 14:36:51\tAPELLIDO, NOMBRE\t12345678',
+  botonResumen:'Ver visitas por franja',
+  etiqueta:['ingreso válido','ingresos válidos'], palabraOtros:'ingresos',
+  mensajeVacio:'No se encontraron ingresos. Revisá que estés pegando fecha de entrada, fecha de salida, supervisor y DNI.',
+  controlesHtml:'<label>Visitas para verde (cantidad mínima)<input id="umbral-vis" type="number" min="1" step="1" value="2"></label>',
+  iniciarControles:iniciarControles, ayudaHtml:ayudaHtml,
+  procesar:procesarFilas, n:function(){return S.visitas.length;}, hayDatos:function(){return S.visitas.length>0;},
+  estadoTxt:function(){var n=S.visitas.length;return n===0?'sin ingresos cargados.':n+(n===1?' ingreso cargado.':' ingresos cargados.');},
+  mesesConDatos:mesesConDatos, avisosCarga:avisosCarga, preview:preview,
+  renderResumen:renderResumen, renderCalendario:renderCalendario,
+  secciones:[{id:'resumen',label:'Resumen por día y franja (solapa 3)'},{id:'calendario',label:'Calendario con colores (solapa 4)'}],
+  xlsx:xlsx, pdf:pdf, reiniciar:function(){S.sup='';},
+  _modelo:modelo, _S:S
+};
+})();
+VARS.franjas=FRA;
+
+/* ---------- arranque ---------- */
+Object.keys(VARS).forEach(function(k){var o=document.createElement('option');o.value=k;o.textContent=VARS[k].nombre;$('variable').appendChild(o);});
+$('variable').value=state.varId;
+renderVariable();
+renderTodo();
+window.__app={state:state,VARS:VARS,procesar:procesar,renderTodo:renderTodo,goTab:goTab};
+})();
+</script>
+</body>
+</html>

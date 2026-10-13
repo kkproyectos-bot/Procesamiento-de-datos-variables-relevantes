@@ -130,6 +130,10 @@ input.ed{width:100%;min-width:158px;font-variant-numeric:tabular-nums;padding:5p
 .subtitulo:first-child{margin-top:0}
 .tabla th small{font-weight:400;color:var(--ink-2);display:block}
 .tabla td.sep,.tabla th.sep{border-left:2px solid var(--line)}
+.tabla td.c-rojo{background:var(--rojo);color:var(--cell-ink)}.tabla td.c-amarillo{background:var(--amarillo);color:var(--cell-ink)}.tabla td.c-verde{background:var(--verde);color:var(--cell-ink)}.tabla td.c-verdeosc{background:#00703c;color:#fff;font-weight:600}
+.tabla tfoot td.c-rojo{background:var(--rojo);color:var(--cell-ink)}.tabla tfoot td.c-amarillo{background:var(--amarillo);color:var(--cell-ink)}.tabla tfoot td.c-verde{background:var(--verde);color:var(--cell-ink)}.tabla tfoot td.c-verdeosc{background:#00703c;color:#fff}
+.chip{display:inline-block;padding:2px 10px;border-radius:3px;font-weight:600}.chip.c-rojo{background:var(--rojo);color:var(--cell-ink)}.chip.c-amarillo{background:var(--amarillo);color:var(--cell-ink)}.chip.c-verde{background:var(--verde);color:var(--cell-ink)}.chip.c-verdeosc{background:#00703c;color:#fff}
+.muestra.verdeosc{background:#00703c}
 .sin-cal{padding:22px;border:1px dashed var(--line);max-width:640px}
 </style>
 </head>
@@ -173,6 +177,7 @@ input.ed{width:100%;min-width:158px;font-variant-numeric:tabular-nums;padding:5p
   <section class="panel" id="panel-2" role="tabpanel" aria-labelledby="tab-2" hidden>
     <h2>Carga de datos</h2>
     <p class="lead" id="lead-2"></p>
+    <div id="carga-propia" style="display:none"></div>
     <label for="pegado" id="lbl-pegado" style="font-weight:500;display:block;margin-bottom:6px"></label>
     <textarea id="pegado" spellcheck="false"></textarea>
     <div class="acciones">
@@ -224,8 +229,8 @@ input.ed{width:100%;min-width:158px;font-variant-numeric:tabular-nums;padding:5p
 var DAY=86400000;
 var MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 var DIAS=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
-var RGB={rojo:[242,109,109],amarillo:[246,216,96],verde:[92,184,122],revisar:[185,167,239]};
-var ARGB={rojo:'FFF26D6D',amarillo:'FFF6D860',verde:'FF5CB87A',revisar:'FFB9A7EF'};
+var RGB={rojo:[242,109,109],amarillo:[246,216,96],verde:[92,184,122],revisar:[185,167,239],verdeosc:[0,112,60]};
+var ARGB={rojo:'FFF26D6D',amarillo:'FFF6D860',verde:'FF5CB87A',revisar:'FFB9A7EF',verdeosc:'FF00703C'};
 
 var hoy=new Date();
 var state={varId:'permanencia',month:hoy.getMonth(),year:hoy.getFullYear(),filas:[],issues:[],issuesMod:[],skipped:0,notice:'',incl:{}};
@@ -312,7 +317,8 @@ function procesarModulo(){
 
 /* ---------- pantallas ---------- */
 function vacioHtml(){
-  return '<div class="vacio-msg"><p>Todavía no hay datos cargados. Pegá los registros en la solapa Carga de datos para ver esta información.</p><button class="primario" data-goto="2">Ir a carga de datos</button></div>';
+  var tv=mod().textoVacio||'Todavía no hay datos cargados. Pegá los registros en la solapa Carga de datos para ver esta información.';
+  return '<div class="vacio-msg"><p>'+tv+'</p><button class="primario" data-goto="2">Ir a carga de datos</button></div>';
 }
 function renderVariable(){
   var m=mod();
@@ -320,16 +326,21 @@ function renderVariable(){
   $('tl-4').textContent=m.tabCalendario||'Calendario'; $('h-4').textContent=m.tabCalendario||'Calendario';
   $('lead-2').textContent=m.ayudaCarga; $('lbl-pegado').textContent=m.etiquetaPegado;
   $('pegado').placeholder=m.placeholder; $('btn-ver-resumen').textContent=m.botonResumen;
+  var propia=!!m.cargaPropia;
+  ['lbl-pegado','pegado','btn-limpiar'].forEach(function(i){$(i).style.display=propia?'none':'';});
+  $('carga-propia').style.display=propia?'':'none';
+  $('mes').parentNode.style.display=m.sinMes?'none':'';
   $('mod-controles').innerHTML=m.controlesHtml||'';
   if(m.iniciarControles) m.iniciarControles();
 }
 function renderEstado(){
   var m=mod();
-  $('estado').textContent=m.nombre+' · '+MESES[state.month]+' '+state.year+': '+m.estadoTxt();
+  $('estado').textContent=m.estadoPropio?m.estadoPropio():m.nombre+' · '+MESES[state.month]+' '+state.year+': '+m.estadoTxt();
   $('ayuda-var').innerHTML=m.ayudaHtml();
 }
 function renderCarga(){
   var m=mod(), msgs=[], n=m.n();
+  if(m.renderCargaPropia){ m.renderCargaPropia(); return; }
   if($('pegado').value.trim()===''){ $('mensajes').innerHTML=''; $('preview').innerHTML=''; $('btn-ver-resumen').disabled=true; return; }
   var iss=state.issues.concat(state.issuesMod);
   if(n>0) msgs.push('<div class="aviso">Se leyeron <strong>'+n+'</strong> '+(n===1?m.etiqueta[0]:m.etiqueta[1])+'.'+(state.skipped?' Se omitió la fila de encabezado.':'')+'</div>');
@@ -484,7 +495,7 @@ async function guardar(nombre,buf){
     setTimeout(function(){URL.revokeObjectURL(url);},2000); mensaje('Listo: '+nombre);
   }catch(e){ mensaje('En esta vista no se pueden guardar archivos.'); }
 }
-function base(){return mod().archivo+'_'+slug(MESES[state.month])+'_'+state.year;}
+function base(){var m=mod(); return m.nombreBase?m.nombreBase():m.archivo+'_'+slug(MESES[state.month])+'_'+state.year;}
 $('btn-xlsx').addEventListener('click',async function(){
   if(!window.ExcelJS){mensaje('No se pudo cargar la librería de Excel. Revisá la conexión y recargá la página.');return;}
   mensaje('Preparando el archivo de Excel...');
@@ -1316,6 +1327,622 @@ return {
 };
 })();
 VARS.franjas=FRA;
+
+
+/* =====================================================================
+   VARIABLE 4: Cuadro de cumplimiento mensual
+   Grilla día de la semana x franja con la cantidad de visitas del mes
+   y tres indicadores con calificación (Totales, Nocturnas, Distribución).
+   Cada visita se cuenta una vez por supervisor, día y franja de entrada.
+   ===================================================================== */
+var CUM=(function(){
+var NOMBRE='Cuadro de cumplimiento mensual';
+var FRANJAS=['06:00 a 14:00 hs.','14:00 a 22:00 hs.','22:00 a 06:00 hs.'];
+var CAL={MST:{t:'Muy satisfactorias (MST)',c:'verdeosc'},SAT:{t:'Satisfactorias (SAT)',c:'verde'},PST:{t:'Poco satisfactorias (PST)',c:'amarillo'},NST:{t:'No satisfactorias (NST)',c:'rojo'}};
+var DEF={meta:24,cel:2,tMST:48,tSAT:22,tPST:12,nSAT:12,nPST:6,dMST:21,dSAT:14,dPST:7};
+var S={visitas:[],total:0,obj:'',p:Object.assign({},DEF)};
+var CAMPOS=[
+  ['meta','Meta mensual de visitas'],['cel','Visitas por celda para verde'],
+  ['tMST','Totales: MST desde'],['tSAT','Totales: SAT desde'],['tPST','Totales: PST desde'],
+  ['nSAT','Nocturnas: SAT desde'],['nPST','Nocturnas: PST desde'],
+  ['dMST','Distribución: MST desde (de 21)'],['dSAT','Distribución: SAT desde'],['dPST','Distribución: PST desde']
+];
+
+function franjaDe(ms){var h=new Date(ms).getUTCHours();return h>=6&&h<14?0:(h>=14&&h<22?1:2);}
+function procesarFilas(filas){
+  var issues=[]; S.visitas=[]; S.total=filas.length;
+  filas.forEach(function(f){
+    var p=leerSupervisor(f.rest);
+    if(!p){issues.push('Fila '+f.n+': falta el nombre del supervisor (tercera columna).');return;}
+    S.visitas.push({a:f.a,b:f.b,n:f.n,nombre:p.nombre,dni:p.dni,key:p.key});
+  });
+  return issues;
+}
+function mesesConDatos(){
+  var out=new Map();
+  S.visitas.forEach(function(v){var d=new Date(v.a),k=d.getUTCFullYear()*12+d.getUTCMonth();out.set(k,(out.get(k)||0)+1);});
+  return out;
+}
+/* Calificación según los cortes: mst puede ser null (la escala no tiene MST). */
+function calif(v,mst,sat,pst){return (mst!==null&&v>=mst)?'MST':(v>=sat?'SAT':(v>=pst?'PST':'NST'));}
+function modelo(){
+  var y=state.year, m=state.month, P=S.p, g=[[0,0,0,0,0,0,0],[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]], vistos=new Set(), vistosDia=new Set(), td=[0,0,0,0,0,0,0], delMes=0;
+  S.visitas.forEach(function(v){
+    var dt=new Date(v.a); if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==m) return;
+    delMes++;
+    var f=franjaDe(v.a), wd=(dt.getUTCDay()+6)%7, kd=v.key+'|'+dt.getUTCDate(), key=kd+'|'+f;
+    if(!vistosDia.has(kd)){vistosDia.add(kd);td[wd]++;}
+    if(vistos.has(key)) return; vistos.add(key);
+    g[f][wd]++;
+  });
+  var tf=g.map(function(r){return r.reduce(function(a,b){return a+b;},0);});
+  var total=td.reduce(function(a,b){return a+b;},0), dist=0; g.forEach(function(r){r.forEach(function(n){if(n>0)dist++;});});
+  return {y:y,m:m,g:g,tf:tf,td:td,total:total,noct:tf[2],dist:dist,delMes:delMes,cargadas:S.visitas.length,
+    cTot:calif(total,P.tMST,P.tSAT,P.tPST), cNoc:calif(tf[2],null,P.nSAT,P.nPST), cDis:calif(dist,P.dMST,P.dSAT,P.dPST),
+    pct:P.meta>0?total/P.meta:null};
+}
+function estCel(n){return n===0?'rojo':(n<S.p.cel?'amarillo':'verde');}
+function estFranja(n){return n<S.p.nPST?'rojo':(n<S.p.nSAT?'amarillo':'verde');}
+function estPct(p){return p===null?'amarillo':(p<0.5?'rojo':(p<0.9?'amarillo':(p<2?'verde':'verdeosc')));}
+function pctTxt(p){return p===null?'-':Math.round(p*100)+' %';}
+function criterios(M){
+  var P=S.p;
+  return {
+    tot:'MST: '+P.tMST+' o más · SAT: '+P.tSAT+' a '+(P.tMST-1)+' · PST: '+P.tPST+' a '+(P.tSAT-1)+' · NST: menos de '+P.tPST,
+    noc:'SAT: '+P.nSAT+' o más · PST: '+P.nPST+' a '+(P.nSAT-1)+' · NST: menos de '+P.nPST,
+    dis:'MST: '+P.dMST+' o más · SAT: '+P.dSAT+' a '+(P.dMST-1)+' · PST: '+P.dPST+' a '+(P.dSAT-1)+' · NST: menos de '+P.dPST,
+    pct:'Rojo: menos de 50 % · Amarillo: 50 a 89 % · Verde: 90 a 199 % · Verde oscuro: 200 % o más'
+  };
+}
+function indicadores(M){
+  var C=criterios(M), P=S.p;
+  return [
+    {n:'Visitas totales del mes',v:M.total,cal:CAL[M.cTot].t,c:CAL[M.cTot].c,crit:C.tot},
+    {n:'Visitas nocturnas (22:00 a 06:00 hs.)',v:M.noct,cal:CAL[M.cNoc].t,c:CAL[M.cNoc].c,crit:C.noc},
+    {n:'Distribución mensual (celdas con al menos 1 visita, de 21)',v:M.dist,cal:CAL[M.cDis].t,c:CAL[M.cDis].c,crit:C.dis},
+    {n:'Cumplimiento de la meta mensual ('+P.meta+' visitas)',v:pctTxt(M.pct),cal:'',c:estPct(M.pct),crit:C.pct}
+  ];
+}
+function titulo(M){return NOMBRE+': '+MESES[M.m]+' '+M.y;}
+function ayudaHtml(){
+  return 'Arma la grilla de visitas del mes por día de la semana y franja, con tres indicadores (Totales, Nocturnas y Distribución) y su calificación. Cada supervisor cuenta una sola visita por día y franja, según su hora de entrada; si vuelve en otra franja o en otro día, es otra visita. Los criterios se pueden cambiar en la sección "Criterios de cumplimiento".';
+}
+function controlesHtml(){
+  var campos=CAMPOS.map(function(c){return '<label>'+c[1]+'<input class="cp-num" data-k="'+c[0]+'" type="number" min="0" step="1" value="'+S.p[c[0]]+'"></label>';}).join('');
+  return '<label class="ancho">Barrio / Objetivo<input id="cp-obj" type="text" value="'+esc(S.obj)+'" placeholder="Nombre del barrio u objetivo" style="background:var(--paper);border:1px solid var(--line);border-radius:3px;padding:9px 10px;width:100%"></label>'+
+    '<details class="ancho"><summary style="cursor:pointer;font-weight:500">Criterios de cumplimiento (editables)</summary><div class="campos" style="margin-top:14px">'+campos+'<div class="ancho"><button type="button" class="sec" id="cp-reset">Volver a los valores originales</button></div></div></details>';
+}
+function iniciarControles(){
+  var o=$('cp-obj'); if(o) o.addEventListener('input',function(){S.obj=this.value;renderTodo();});
+  document.querySelectorAll('.cp-num').forEach(function(i){
+    i.addEventListener('input',function(){var v=parseInt(this.value,10); if(v>=0){S.p[this.dataset.k]=v;renderTodo();}});
+  });
+  var r=$('cp-reset'); if(r) r.addEventListener('click',function(){S.p=Object.assign({},DEF);document.querySelectorAll('.cp-num').forEach(function(i){i.value=String(S.p[i.dataset.k]);});renderTodo();});
+}
+function objTxt(){return S.obj.trim();}
+
+function renderResumen(){
+  var M=modelo();
+  $('lead-3').textContent=titulo(M)+(objTxt()?' · '+objTxt():'')+'. Cada supervisor cuenta una sola visita por día y franja, según la hora de su entrada.';
+  var cab='<th class="izq">Franja horaria</th>'+DIAS.map(function(d){return '<th>'+d+'</th>';}).join('')+'<th>Total</th>';
+  var filas=M.g.map(function(r,f){
+    return '<tr><td class="izq">'+FRANJAS[f]+'</td>'+r.map(function(n){return '<td class="c-'+estCel(n)+'">'+n+'</td>';}).join('')+'<td class="c-'+estFranja(M.tf[f])+'">'+M.tf[f]+'</td></tr>';
+  }).join('');
+  var pie='<tr><td class="izq">Total</td>'+M.td.map(function(n){return '<td>'+n+'</td>';}).join('')+'<td class="c-'+CAL[M.cTot].c+'">'+M.total+'</td></tr>';
+  var ind=indicadores(M).map(function(i){
+    return '<tr><td class="izq">'+esc(i.n)+'</td><td class="c-'+i.c+'">'+esc(i.v)+'</td><td class="izq">'+(i.cal?'<span class="chip c-'+i.c+'">'+esc(i.cal)+'</span>':'-')+'</td><td class="izq">'+esc(i.crit)+'</td></tr>';
+  }).join('');
+  var otros=M.cargadas-M.delMes;
+  $('resumen').innerHTML=
+    (objTxt()?'<p class="control" style="margin:0 0 12px"><strong>Barrio / Objetivo:</strong> '+esc(objTxt())+'</p>':'')+
+    '<h3 class="subtitulo" style="margin-top:0">Visitas del mes por día de la semana y franja</h3>'+
+    '<div class="scroll"><table class="tabla"><thead><tr>'+cab+'</tr></thead><tbody>'+filas+'</tbody><tfoot>'+pie+'</tfoot></table></div>'+
+    '<div class="leyenda" style="margin-top:12px"><span class="item"><i class="muestra rojo"></i>Sin visitas</span>'+(S.p.cel>1?'<span class="item"><i class="muestra amarillo"></i>'+(S.p.cel===2?'1 visita':'De 1 a '+(S.p.cel-1)+' visitas')+'</span>':'')+'<span class="item"><i class="muestra verde"></i>'+S.p.cel+(S.p.cel===1?' visita o más':' visitas o más')+' (el color de la columna Total sigue la escala de nocturnas: '+S.p.nSAT+' o más, verde; '+S.p.nPST+' a '+(S.p.nSAT-1)+', amarillo)</span></div>'+
+    '<h3 class="subtitulo">Cuadro de cumplimiento</h3>'+
+    '<div class="scroll"><table class="tabla"><thead><tr><th class="izq">Indicador</th><th>Resultado</th><th class="izq">Calificación</th><th class="izq">Criterio</th></tr></thead><tbody>'+ind+'</tbody></table></div>'+
+    '<p class="control">Control: se cargaron '+M.cargadas+(M.cargadas===1?' ingreso':' ingresos')+'; '+M.delMes+(M.delMes===1?' tiene':' tienen')+' la entrada en este mes'+(otros?' (los otros '+otros+' son de otros meses)':'')+' y forman '+M.total+(M.total===1?' visita':' visitas')+' en total (cada supervisor cuenta una vez por día; en la grilla, una vez por franja, así que la suma de las franjas, '+(M.tf[0]+M.tf[1]+M.tf[2])+', puede ser mayor que el total).</p>';
+}
+function preview(){
+  var n=S.visitas.length;
+  var filas=S.visitas.slice(0,500).map(function(v){
+    return '<tr><td>'+v.n+'</td><td>'+fmtFechaHora(v.a)+'</td><td>'+fmtFechaHora(v.b)+'</td><td class="izq">'+esc(v.nombre)+'</td><td>'+esc(v.dni||'-')+'</td><td>'+FRANJAS[franjaDe(v.a)]+'</td></tr>';
+  }).join('');
+  return '<div class="scroll alto"><table class="tabla"><thead><tr><th>Fila</th><th>Entrada</th><th>Salida</th><th class="izq">Supervisor</th><th>DNI</th><th>Franja de la visita</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+(n>500?'<p class="control">Se muestran los primeros 500 ingresos. Todos se usan en el cálculo.</p>':'');
+}
+function avisosCarga(){
+  if(S.total>0&&S.visitas.length===0) return ['<div class="aviso atencion">Para esta variable hace falta pegar también el supervisor (visitante) y el DNI, en la tercera y cuarta columna.</div>'];
+  return [];
+}
+
+/* ---- Excel ---- */
+async function xlsx(wb,inc,X){
+  if(!inc.cuadro) return;
+  var M=modelo(), borde=X.borde, centro=X.centro, ws=wb.addWorksheet('Cuadro de cumplimiento');
+  function fill(c,k){c.fill={type:'pattern',pattern:'solid',fgColor:{argb:ARGB[k]}}; c.font={bold:!!(c.font&&c.font.bold),color:{argb:k==='verdeosc'?'FFFFFFFF':'FF1C2A35'}};}
+  function cel(r,c,v,o){o=o||{};var x=ws.getCell(r,c);x.value=v;x.alignment=o.izq?{horizontal:'left',vertical:'middle',wrapText:true}:centro;x.border=borde;
+    if(o.gris){x.fill=X.gris;} x.font={bold:!!o.b}; if(o.k)fill(x,o.k); return x;}
+  ws.mergeCells('A1:I1'); ws.getCell('A1').value=titulo(M); ws.getCell('A1').font={bold:true,size:14};
+  ws.getCell('A2').value='Barrio / Objetivo: '+(objTxt()||'-'); ws.getCell('A2').font={bold:true};
+  cel(4,1,'Franja horaria',{gris:1,b:1,izq:1});
+  DIAS.forEach(function(d,i){cel(4,2+i,d,{gris:1,b:1});}); cel(4,9,'Total',{gris:1,b:1});
+  M.g.forEach(function(r,f){
+    cel(5+f,1,FRANJAS[f],{izq:1});
+    r.forEach(function(n,i){cel(5+f,2+i,n,{k:estCel(n)});});
+    cel(5+f,9,M.tf[f],{k:estFranja(M.tf[f]),b:1});
+  });
+  cel(8,1,'Total',{gris:1,b:1,izq:1}); M.td.forEach(function(n,i){cel(8,2+i,n,{gris:1,b:1});}); cel(8,9,M.total,{k:CAL[M.cTot].c,b:1});
+  ws.getCell('A10').value='CUADRO DE CUMPLIMIENTO'; ws.getCell('A10').font={bold:true,size:12};
+  cel(11,1,'Indicador',{gris:1,b:1,izq:1}); cel(11,2,'Resultado',{gris:1,b:1}); cel(11,3,'Calificación',{gris:1,b:1}); ws.mergeCells(11,3,11,4);
+  cel(11,5,'Criterio',{gris:1,b:1,izq:1}); ws.mergeCells(11,5,11,9);
+  indicadores(M).forEach(function(i,j){
+    var r=12+j; cel(r,1,i.n,{izq:1}); cel(r,2,i.v,{k:i.c,b:1}); cel(r,3,i.cal||'-',{k:i.cal?i.c:null}); ws.mergeCells(r,3,r,4);
+    cel(r,5,i.crit,{izq:1}); ws.mergeCells(r,5,r,9); ws.getRow(r).height=32;
+  });
+  ws.getCell('A17').value='Cada supervisor cuenta una sola visita por día y franja, según la hora de su entrada. El total (por día y del mes) cuenta a cada supervisor una sola vez por día; si estuvo en dos franjas el mismo día, figura en ambas franjas pero suma una sola vez al total.';
+  ws.getCell('A17').font={italic:true,size:9};
+  [34,13,13,13,13,13,13,13,13].forEach(function(w,i){ws.getColumn(i+1).width=w;});
+  ws.getRow(4).height=22;
+  ws.pageSetup={orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:1};
+  /* hoja oculta con los datos del mes: permite armar luego los informes trimestral, semestral y anual */
+  var wd=wb.addWorksheet('datos_cumplimiento',{state:'hidden'}), P=S.p;
+  wd.addRow(['marca','CUADRO_CUMPLIMIENTO_V1']); wd.addRow(['anio',M.y]); wd.addRow(['mes',M.m]); wd.addRow(['objetivo',objTxt()]);
+  Object.keys(DEF).forEach(function(k){wd.addRow(['p_'+k,P[k]]);});
+  wd.addRow(['total',M.total]);
+  M.g.forEach(function(r,f){wd.addRow(['g'+f].concat(r));});
+}
+
+/* ---- PDF ---- */
+function pdf(ctx,inc){
+  if(!inc.cuadro) return;
+  var M=modelo(), doc=ctx.nueva('landscape'), x0=14, rh=9;
+  function caja(x,y,w,h,txt,k,o){
+    o=o||{}; if(k){var col=RGB[k]; doc.setFillColor(col[0],col[1],col[2]);} else if(o.gris) doc.setFillColor(223,230,235); else doc.setFillColor(255,255,255);
+    doc.rect(x,y,w,h,'FD');
+    doc.setFont('helvetica',o.b?'bold':'normal'); doc.setFontSize(o.fs||9);
+    if(k==='verdeosc') doc.setTextColor(255,255,255); else doc.setTextColor(28,42,53);
+    var t=String(txt); while(t.length>1&&doc.getTextWidth(t)>w-3) t=t.slice(0,-1);
+    if(o.izq) doc.text(t,x+2,y+h/2+1.2); else doc.text(t,x+w/2,y+h/2+1.2,{align:'center'});
+  }
+  doc.setDrawColor(120,132,142); doc.setLineWidth(0.2);
+  doc.setTextColor(28,42,53); doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.text(titulo(M),x0,16);
+  doc.setFontSize(10); doc.text('Barrio / Objetivo: '+(objTxt()||'-'),x0,23);
+  var cw=[46,27,27,27,27,27,27,27,27], y=29, x;
+  x=x0; ['Franja horaria'].concat(DIAS,['Total']).forEach(function(t,i){caja(x,y,cw[i],rh,t,null,{gris:1,b:1,izq:i===0});x+=cw[i];});
+  M.g.forEach(function(r,f){
+    y+=rh; x=x0; caja(x,y,cw[0],rh,FRANJAS[f],null,{izq:1}); x+=cw[0];
+    r.forEach(function(n,i){caja(x,y,cw[i+1],rh,n,estCel(n));x+=cw[i+1];});
+    caja(x,y,cw[8],rh,M.tf[f],estFranja(M.tf[f]),{b:1});
+  });
+  y+=rh; x=x0; caja(x,y,cw[0],rh,'Total',null,{gris:1,b:1,izq:1}); x+=cw[0];
+  M.td.forEach(function(n,i){caja(x,y,cw[i+1],rh,n,null,{gris:1,b:1});x+=cw[i+1];});
+  caja(x,y,cw[8],rh,M.total,CAL[M.cTot].c,{b:1});
+  y+=rh+12; doc.setTextColor(28,42,53); doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.text('Cuadro de cumplimiento',x0,y);
+  y+=4; var w2=[78,24,58,98]; x=x0;
+  ['Indicador','Resultado','Calificación','Criterio'].forEach(function(t,i){caja(x,y,w2[i],rh,t,null,{gris:1,b:1,izq:i!==1});x+=w2[i];});
+  indicadores(M).forEach(function(i){
+    y+=rh; x=x0;
+    var nombre=i.n.replace(/ \(celdas.*$/,' (de 21 celdas)');
+    caja(x,y,w2[0],rh,nombre,null,{izq:1,fs:8}); x+=w2[0];
+    caja(x,y,w2[1],rh,i.v,i.c,{b:1}); x+=w2[1];
+    caja(x,y,w2[2],rh,i.cal||'-',i.cal?i.c:null,{fs:8}); x+=w2[2];
+    caja(x,y,w2[3],rh,i.crit.replace(/ o más/g,' o mas').replace(/ y /g,' y '),null,{izq:1,fs:7});
+  });
+  y+=rh+7; doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(28,42,53);
+  doc.text(doc.splitTextToSize('Cada supervisor cuenta una sola visita por día y franja, según la hora de su entrada. El total (por día y del mes) cuenta a cada supervisor una sola vez por día; si estuvo en dos franjas el mismo día, figura en ambas franjas pero suma una sola vez al total.',255),x0,y);
+}
+
+return {
+  id:'cumplimiento', nombre:NOMBRE, archivo:'cuadro_de_cumplimiento',
+  tabResumen:'Cuadro de cumplimiento', tabCalendario:'Calendario',
+  ayudaCarga:'Copiá las cuatro columnas de tu Excel (fecha de entrada, fecha de salida, supervisor y DNI) y pegalas acá. El formato de fecha esperado es dd/mm/aaaa hh:mm:ss. Los datos se procesan en tu navegador.',
+  etiquetaPegado:'Fecha de entrada, fecha de salida, supervisor y DNI',
+  placeholder:'23/09/2026 14:10:22\t23/09/2026 14:36:51\tAPELLIDO, NOMBRE\t12345678',
+  botonResumen:'Ver cuadro de cumplimiento',
+  etiqueta:['ingreso válido','ingresos válidos'], palabraOtros:'ingresos',
+  mensajeVacio:'No se encontraron ingresos. Revisá que estés pegando fecha de entrada, fecha de salida, supervisor y DNI.',
+  controlesHtml:controlesHtml(),
+  iniciarControles:iniciarControles, ayudaHtml:ayudaHtml,
+  procesar:procesarFilas, n:function(){return S.visitas.length;}, hayDatos:function(){return S.visitas.length>0;},
+  estadoTxt:function(){var n=S.visitas.length;return n===0?'sin ingresos cargados.':n+(n===1?' ingreso cargado.':' ingresos cargados.');},
+  mesesConDatos:mesesConDatos, avisosCarga:avisosCarga, preview:preview,
+  renderResumen:renderResumen,
+  secciones:[{id:'cuadro',label:'Cuadro de cumplimiento mensual (solapa 3)'}],
+  xlsx:xlsx, pdf:pdf, reiniciar:function(){},
+  _modelo:modelo, _S:S
+};
+})();
+VARS.cumplimiento=CUM;
+
+
+/* =====================================================================
+   VARIABLE 5: Informe trimestral, semestral y anual
+   Se arma subiendo los Excel mensuales del Cuadro de cumplimiento
+   (los que baja esta misma herramienta): cada uno lleva sus datos en
+   una hoja oculta, que acá se leen y se suman.
+   ===================================================================== */
+var IPD=(function(){
+var NOMBRE='Informe trimestral, semestral y anual';
+var HOJA='datos_cumplimiento', MARCA='CUADRO_CUMPLIMIENTO_V1';
+var FRANJAS=['06:00 a 14:00 hs.','14:00 a 22:00 hs.','22:00 a 06:00 hs.'];
+var CAL={MST:{t:'Muy satisfactorias (MST)',c:'verdeosc'},SAT:{t:'Satisfactorias (SAT)',c:'verde'},PST:{t:'Poco satisfactorias (PST)',c:'amarillo'},NST:{t:'No satisfactorias (NST)',c:'rojo'}};
+var PK=['meta','cel','tMST','tSAT','tPST','nSAT','nPST','dMST','dSAT','dPST'];
+var TIPOS={
+  trimestral:{k:3,lbl:['1° Trimestre','2° Trimestre','3° Trimestre','4° Trimestre'],rango:['Ene – Mar','Abr – Jun','Jul – Sep','Oct – Dic'],adj:'trimestral'},
+  semestral:{k:6,lbl:['1° Semestre','2° Semestre'],rango:['Ene – Jun','Jul – Dic'],adj:'semestral'},
+  anual:{k:12,lbl:['Año'],rango:['Ene – Dic'],adj:'anual'}
+};
+var S={meses:new Map(),avisos:[],tipo:'trimestral',per:0};
+
+function calif(v,mst,sat,pst){return (mst!==null&&v>=mst)?'MST':(v>=sat?'SAT':(v>=pst?'PST':'NST'));}
+function estPct(p){return p===null?'amarillo':(p<0.5?'rojo':(p<0.9?'amarillo':(p<2?'verde':'verdeosc')));}
+function pct0(p){return p===null?'-':Math.round(p*100)+' %';}
+function dec(x){return x.toFixed(1).replace('.',',');}
+function varTxt(v){return v===null?'-':(v>0?'+':'')+(v*100).toFixed(1).replace('.',',')+' %';}
+function sum(a){return a.reduce(function(x,y){return x+y;},0);}
+
+/* ---- lectura de los Excel mensuales ---- */
+function leerLibro(wb,nombre){
+  var ws=wb.getWorksheet(HOJA);
+  if(!ws) return {err:'no es un Excel del Cuadro de cumplimiento mensual de esta herramienta (falta la hoja de datos).'};
+  var kv={}, g=[];
+  ws.eachRow(function(row){
+    var k=row.getCell(1).value; if(k===null||k===undefined) return; k=String(k);
+    if(/^g[012]$/.test(k)){ var r=[]; for(var j=2;j<=8;j++) r.push(row.getCell(j).value); g[+k.charAt(1)]=r; }
+    else kv[k]=row.getCell(2).value;
+  });
+  if(kv.marca!==MARCA) return {err:'no es un Excel del Cuadro de cumplimiento mensual de esta herramienta (marca no reconocida).'};
+  var y=+kv.anio, m=+kv.mes, P={}, ok=true;
+  if(!(y>=2000&&y<=2100)||!(m>=0&&m<=11)||kv.anio===null||kv.mes===null) return {err:'los datos del mes están incompletos.'};
+  PK.forEach(function(k){var v=kv['p_'+k]; if(typeof v!=='number'||v<0) ok=false; P[k]=v;});
+  if(!ok) return {err:'los criterios guardados en el archivo están incompletos.'};
+  if(g.length!==3||g.some(function(r){return !r||r.length!==7||r.some(function(x){return typeof x!=='number'||x<0||Math.round(x)!==x;});})) return {err:'la grilla de visitas guardada en el archivo está incompleta.'};
+  if(typeof kv.total!=='number'||kv.total<0) return {err:'el total del mes guardado en el archivo no es válido.'};
+  var tf=g.map(sum), dist=0; g.forEach(function(r){r.forEach(function(n){if(n>0)dist++;});});
+  return {d:{y:y,m:m,obj:kv.objetivo?String(kv.objetivo):'',P:P,g:g,tf:tf,total:kv.total,noct:tf[2],dist:dist,archivo:nombre}};
+}
+/* archivos: [{name, buf}] */
+async function cargarArchivos(archivos){
+  var avisos=[];
+  for(var i=0;i<archivos.length;i++){
+    var a=archivos[i];
+    try{
+      var wb=new ExcelJS.Workbook(); await wb.xlsx.load(a.buf);
+      var r=leerLibro(wb,a.name);
+      if(r.err){avisos.push('"'+a.name+'": '+r.err);continue;}
+      var d=r.d, k=d.y*12+d.m;
+      if(S.meses.has(k)) avisos.push('Ya había un archivo de '+MESES[d.m].toLowerCase()+' '+d.y+' ("'+S.meses.get(k).archivo+'"); se reemplazó por "'+a.name+'".');
+      S.meses.set(k,d);
+    }catch(e){ avisos.push('"'+a.name+'": no se pudo leer como archivo de Excel.'); }
+  }
+  S.avisos=avisos;
+  /* si el año elegido no tiene meses cargados, saltar al año más reciente */
+  if(S.meses.size>0&&!Array.from(S.meses.values()).some(function(d){return d.y===state.year;})){
+    var ys=Array.from(S.meses.values()).map(function(d){return d.y;}); state.year=Math.max.apply(null,ys); $('anio').value=String(state.year);
+    S.avisos.push('El año elegido no tenía meses cargados, así que se cambió a '+state.year+'.');
+  }
+  renderTodo();
+}
+
+/* ---- cálculo ---- */
+function mesesDe(tipo,per){var k=TIPOS[tipo].k, a=tipo==='anual'?0:per*k, r=[]; for(var i=a;i<a+k;i++) r.push(i); return r;}
+function agregar(y,idx){
+  var con=[], faltan=[];
+  idx.forEach(function(mi){var d=S.meses.get(y*12+mi); if(d) con.push(d); else faltan.push(mi);});
+  var n=con.length, tf=[0,1,2].map(function(f){return sum(con.map(function(d){return d.tf[f];}));});
+  var total=sum(con.map(function(d){return d.total;})), meta=sum(con.map(function(d){return d.P.meta;})), distS=sum(con.map(function(d){return d.dist;}));
+  var P=n?con[con.length-1].P:null, avgT=n?total/n:null, avgN=n?tf[2]/n:null, avgD=n?distS/n:null;
+  return {con:con,faltan:faltan,n:n,tf:tf,total:total,meta:meta,pct:meta>0?total/meta:null,avgT:avgT,avgN:avgN,avgD:avgD,P:P,
+    cT:n?calif(avgT,P.tMST,P.tSAT,P.tPST):null,cN:n?calif(avgN,null,P.nSAT,P.nPST):null,cD:n?calif(avgD,P.dMST,P.dSAT,P.dPST):null,
+    difP:n?con.some(function(d){return PK.some(function(k){return d.P[k]!==P[k];});}):false};
+}
+function califMes(d){var P=d.P; return {t:calif(d.total,P.tMST,P.tSAT,P.tPST),n:calif(d.noct,null,P.nSAT,P.nPST),d:calif(d.dist,P.dMST,P.dSAT,P.dPST)};}
+function objetivo(){var o=''; Array.from(S.meses.values()).sort(function(a,b){return (b.y*12+b.m)-(a.y*12+a.m);}).some(function(d){if(d.obj.trim()){o=d.obj.trim();return true;}return false;}); return o;}
+function objetivosDistintos(){var set=new Set(); S.meses.forEach(function(d){if(d.obj.trim())set.add(d.obj.trim());}); return set.size>1;}
+function informe(){
+  var y=state.year, tipo=S.tipo, per=tipo==='anual'?0:Math.min(S.per,TIPOS[tipo].lbl.length-1), idx=mesesDe(tipo,per);
+  var cur=agregar(y,idx), prev=(tipo!=='anual'&&per>0)?agregar(y,mesesDe(tipo,per-1)):null;
+  var vr=(prev&&prev.n&&cur.n&&prev.avgT>0)?cur.avgT/prev.avgT-1:null;
+  var filas=idx.map(function(mi){var d=S.meses.get(y*12+mi)||null; return {mi:mi,d:d,c:d?califMes(d):null,pct:d&&d.P.meta>0?d.total/d.P.meta:null};});
+  var ex=null;
+  if(tipo==='anual'&&cur.n){
+    var cnt={MST:0,SAT:0,PST:0,NST:0}; cur.con.forEach(function(d){cnt[califMes(d).t]++;});
+    var mx=cur.con.reduce(function(a,d){return d.total>a.total?d:a;},cur.con[0]), mn=cur.con.reduce(function(a,d){return d.total<a.total?d:a;},cur.con[0]);
+    var fmx=cur.tf.indexOf(Math.max.apply(null,cur.tf)), fmn=cur.tf.indexOf(Math.min.apply(null,cur.tf));
+    ex={cnt:cnt,mx:mx,mn:mn,fmx:fmx,fmn:fmn,partNoct:cur.total>0?cur.tf[2]/cur.total:null,
+        noctBajas:cur.con.filter(function(d){return d.noct<d.P.nSAT;}).length};
+  }
+  return {y:y,tipo:tipo,per:per,idx:idx,cur:cur,prev:prev,vr:vr,filas:filas,ex:ex,
+    titulo:'Informe '+TIPOS[tipo].adj+(tipo==='anual'?'':' · '+TIPOS[tipo].lbl[per])+' '+y};
+}
+function evolucion(){
+  var y=state.year, rows=[], acum=0, prevD=null;
+  for(var mi=0;mi<12;mi++){
+    var d=S.meses.get(y*12+mi)||null; if(d) acum+=d.total;
+    var v=(d&&prevD&&prevD.total>0)?d.total/prevD.total-1:null;
+    rows.push({mi:mi,d:d,c:d?califMes(d):null,pct:d&&d.P.meta>0?d.total/d.P.meta:null,v:v,acum:acum});
+    prevD=d;
+  }
+  var con=rows.filter(function(r){return r.d;}).map(function(r){return r.d;});
+  var tot={tf:[0,1,2].map(function(f){return sum(con.map(function(d){return d.tf[f];}));}),total:sum(con.map(function(d){return d.total;})),meta:sum(con.map(function(d){return d.P.meta;})),n:con.length};
+  tot.pct=tot.meta>0?tot.total/tot.meta:null;
+  return {y:y,rows:rows,tot:tot,titulo:'Evolución mensual de visitas de supervisión '+y};
+}
+function criterios(P){
+  return {
+    t:'MST: '+P.tMST+' o más · SAT: '+P.tSAT+' a '+(P.tMST-1)+' · PST: '+P.tPST+' a '+(P.tSAT-1)+' · NST: menos de '+P.tPST,
+    n:'SAT: '+P.nSAT+' o más · PST: '+P.nPST+' a '+(P.nSAT-1)+' · NST: menos de '+P.nPST,
+    d:'MST: '+P.dMST+' o más · SAT: '+P.dSAT+' a '+(P.dMST-1)+' · PST: '+P.dPST+' a '+(P.dSAT-1)+' · NST: menos de '+P.dPST};
+}
+var LEY_CAL='MST: muy satisfactorias · SAT: satisfactorias · PST: poco satisfactorias · NST: no satisfactorias';
+
+/* ---- celdas {t,k,b,izq} que usan la pantalla, el Excel y el PDF ---- */
+function cT(t,o){o=o||{};return {t:String(t),k:o.k||null,b:!!o.b,izq:!!o.izq,g:!!o.g};}
+function cCal(c){return c?cT(c,{k:CAL[c].c}):cT('SIN DATOS',{});}
+var FC=['06:00-14:00 hs.','14:00-22:00 hs.','22:00-06:00 hs.'];
+var TB={
+  detalle:{
+    cab:['Mes'].concat(FC,['Total','Meta','% meta','Distrib. (de 21)','Totales','Nocturnas','Distribución','Carga']),
+    fila:function(f){
+      var d=f.d;
+      if(!d) return [cT(MESES[f.mi],{izq:1})].concat([1,2,3,4,5,6,7].map(function(){return cT('-');}),[cT('SIN DATOS'),cT('SIN DATOS'),cT('SIN DATOS'),cT('SIN DATOS')]);
+      return [cT(MESES[f.mi],{izq:1}),cT(d.tf[0]),cT(d.tf[1]),cT(d.tf[2]),cT(d.total,{b:1}),cT(d.P.meta),cT(pct0(f.pct),{k:estPct(f.pct)}),cT(d.dist),cCal(f.c.t),cCal(f.c.n),cCal(f.c.d),cT('CARGADO')];
+    },
+    w:[24,19,19,19,15,14,19,24,19,19,22,22]
+  },
+  evol:{
+    cab:['Mes'].concat(FC,['Total','Meta','% meta','Var. mes ant.','Distrib. (de 21)','Totales','Nocturnas','Distribución','Carga','Acumulado']),
+    fila:function(r){
+      var d=r.d;
+      if(!d) return [cT(MESES[r.mi],{izq:1}),cT('-'),cT('-'),cT('-'),cT('-'),cT('-'),cT('-'),cT('-'),cT('-'),cT('SIN DATOS'),cT('SIN DATOS'),cT('SIN DATOS'),cT('SIN DATOS'),cT(r.acum)];
+      return [cT(MESES[r.mi],{izq:1}),cT(d.tf[0]),cT(d.tf[1]),cT(d.tf[2]),cT(d.total,{b:1}),cT(d.P.meta),cT(pct0(r.pct),{k:estPct(r.pct)}),cT(varTxt(r.v)),cT(d.dist),cCal(r.c.t),cCal(r.c.n),cCal(r.c.d),cT('CARGADO'),cT(r.acum)];
+    },
+    w:[22,16,16,16,13,14,15,18,17,17,17,18,17,17]
+  }
+};
+
+function pieEvol(V){
+  return [cT('TOTAL AÑO',{izq:1,g:1,b:1}),cT(V.tot.tf[0],{g:1,b:1}),cT(V.tot.tf[1],{g:1,b:1}),cT(V.tot.tf[2],{g:1,b:1}),cT(V.tot.total,{g:1,b:1}),cT(V.tot.meta,{g:1,b:1}),cT(pct0(V.tot.pct),{g:1,b:1}),cT('',{g:1}),cT('',{g:1}),cT('',{g:1}),cT('',{g:1}),cT('',{g:1}),cT(V.tot.n+(V.tot.n===1?' mes':' meses'),{g:1,b:1}),cT('',{g:1})];
+}
+
+/* ---- pantalla ---- */
+function th(arr){return '<tr>'+arr.map(function(t,i){return '<th'+(i===0?' class="izq"':'')+'>'+esc(t)+'</th>';}).join('')+'</tr>';}
+function td(c){return '<td class="'+(c.izq?'izq ':'')+(c.k?'c-'+c.k:'')+'"'+(c.b?' style="font-weight:700"':'')+'>'+esc(c.t)+'</td>';}
+function tabla(cab,filas,pie){
+  return '<div class="scroll"><table class="tabla"><thead>'+th(cab)+'</thead><tbody>'+filas.map(function(f){return '<tr>'+f.map(td).join('')+'</tr>';}).join('')+'</tbody>'+(pie?'<tfoot><tr>'+pie.map(td).join('')+'</tr></tfoot>':'')+'</table></div>';
+}
+function bloqueResumen(R){
+  var c=R.cur;
+  if(!c.n) return {A:null,B:null};
+  var A=[[cT(c.tf[0]),cT(c.tf[1]),cT(c.tf[2]),cT(c.total,{b:1}),cT(c.meta),cT(pct0(c.pct),{k:estPct(c.pct)})]];
+  var cr=criterios(c.P);
+  var B=[
+    [cT('Totales (promedio mensual de visitas)',{izq:1}),cT(dec(c.avgT),{b:1}),cCal(c.cT),cT(cr.t,{izq:1})],
+    [cT('Nocturnas (promedio mensual, 22:00 a 06:00 hs.)',{izq:1}),cT(dec(c.avgN),{b:1}),cCal(c.cN),cT(cr.n,{izq:1})],
+    [cT('Distribución (promedio mensual de celdas con visita, de 21)',{izq:1}),cT(dec(c.avgD),{b:1}),cCal(c.cD),cT(cr.d,{izq:1})],
+    [cT('Variación del promedio mensual total vs período anterior',{izq:1}),cT(varTxt(R.vr),{b:1}),cT('-'),cT(R.tipo==='anual'?'No aplica al informe anual.':(R.per===0?'No hay período anterior dentro del año.':(R.prev&&R.prev.n?'Compara con '+TIPOS[R.tipo].lbl[R.per-1]+'.':'No hay meses cargados del período anterior.')),{izq:1})]
+  ];
+  return {A:A,B:B};
+}
+function extras(R){
+  if(!R.ex) return null;
+  var e=R.ex, n=R.cur.n;
+  var dist=['MST','SAT','PST','NST'].map(function(k){return [cT(CAL[k].t,{izq:1,k:CAL[k].c}),cT(e.cnt[k]),cT(Math.round(e.cnt[k]/n*100)+' %')];});
+  var ind=[
+    [cT('Mes con más visitas',{izq:1}),cT(MESES[e.mx.m]),cT(e.mx.total)],
+    [cT('Mes con menos visitas (con carga)',{izq:1}),cT(MESES[e.mn.m]),cT(e.mn.total)],
+    [cT('Franja con más visitas',{izq:1}),cT(FRANJAS[e.fmx]),cT(R.cur.tf[e.fmx])],
+    [cT('Franja con menos visitas',{izq:1}),cT(FRANJAS[e.fmn]),cT(R.cur.tf[e.fmn])],
+    [cT('Participación nocturna (22:00 a 06:00 hs.)',{izq:1}),cT('-'),cT(e.partNoct===null?'-':(e.partNoct*100).toFixed(1).replace('.',',')+' %')],
+    [cT('Meses con nocturnas por debajo del mínimo para SAT',{izq:1}),cT('-'),cT(e.noctBajas)]
+  ];
+  return {dist:dist,ind:ind};
+}
+function ayudaHtml(){
+  return 'Armá el informe de un trimestre, un semestre o el año completo. Se hace subiendo los Excel mensuales del Cuadro de cumplimiento que descargó esta misma herramienta; no hace falta volver a pegar los registros. Elegí el tipo de informe, el período y el año, y después subí los archivos en la solapa 2.';
+}
+function controlesHtml(){
+  var t=Object.keys(TIPOS).map(function(k){return '<option value="'+k+'"'+(k===S.tipo?' selected':'')+'>'+k.charAt(0).toUpperCase()+k.slice(1)+'</option>';}).join('');
+  return '<label>Tipo de informe<select id="ip-tipo">'+t+'</select></label><label id="ip-per-lbl">Período<select id="ip-per"></select></label>';
+}
+function llenarPeriodos(){
+  var sel=$('ip-per'); if(!sel) return;
+  var T=TIPOS[S.tipo]; sel.innerHTML=T.lbl.map(function(l,i){return '<option value="'+i+'">'+l+' ('+T.rango[i]+')</option>';}).join('');
+  if(S.per>=T.lbl.length) S.per=0; sel.value=String(S.per);
+  $('ip-per-lbl').style.display=S.tipo==='anual'?'none':'';
+}
+function iniciarControles(){
+  llenarPeriodos();
+  $('ip-tipo').addEventListener('change',function(){S.tipo=this.value;llenarPeriodos();renderTodo();});
+  $('ip-per').addEventListener('change',function(){S.per=+this.value;renderTodo();});
+}
+function renderCargaPropia(){
+  var n=S.meses.size, html='';
+  html+='<div class="campos" style="margin-bottom:14px"><label class="ancho">Excel mensuales del Cuadro de cumplimiento (.xlsx)<input id="ip-files" type="file" accept=".xlsx" multiple style="padding:9px 0"></label></div>';
+  html+='<div class="acciones" style="margin-top:0"><button class="sec" id="ip-borrar"'+(n?'':' disabled')+'>Quitar todos los archivos</button></div>';
+  var msgs=[];
+  if(S.avisos.length) msgs.push('<div class="aviso atencion"><ul style="margin:0;padding-left:18px">'+S.avisos.map(function(t){return '<li>'+esc(t)+'</li>';}).join('')+'</ul></div>');
+  if(objetivosDistintos()) msgs.push('<div class="aviso atencion">Los archivos tienen distintos Barrio / Objetivo. El informe usa el del archivo más reciente.</div>');
+  if(n) msgs.push('<div class="aviso">Hay <strong>'+n+'</strong> '+(n===1?'mes cargado':'meses cargados')+'.</div>');
+  else msgs.push('<div class="aviso atencion">Todavía no hay archivos. Subí los Excel mensuales del período que querés analizar.</div>');
+  html+='<div class="mensajes" style="margin-top:14px">'+msgs.join('')+'</div>';
+  if(n){
+    var lst=Array.from(S.meses.entries()).sort(function(a,b){return a[0]-b[0];});
+    html+='<div class="scroll alto" style="margin-top:18px"><table class="tabla"><thead><tr><th class="izq">Mes</th><th>Año</th><th class="izq">Barrio / Objetivo</th><th>Visitas del mes</th><th class="izq">Archivo</th><th></th></tr></thead><tbody>'+
+      lst.map(function(e){var d=e[1];return '<tr><td class="izq">'+MESES[d.m]+'</td><td>'+d.y+'</td><td class="izq">'+esc(d.obj||'-')+'</td><td>'+d.total+'</td><td class="izq">'+esc(d.archivo)+'</td><td><button class="sec ip-quitar" data-k="'+e[0]+'">Quitar</button></td></tr>';}).join('')+'</tbody></table></div>';
+  }
+  $('carga-propia').innerHTML=html;
+  $('btn-ver-resumen').disabled=(n===0);
+  var f=$('ip-files'); if(f) f.addEventListener('change',function(){
+    var fl=Array.from(this.files||[]); if(!fl.length) return;
+    Promise.all(fl.map(function(x){return x.arrayBuffer().then(function(b){return {name:x.name,buf:b};});})).then(cargarArchivos);
+  });
+}
+document.addEventListener('click',function(ev){
+  if(state.varId!=='periodo') return;
+  var q=ev.target.closest&&ev.target.closest('.ip-quitar'); if(q){S.meses.delete(+q.dataset.k);S.avisos=[];renderTodo();return;}
+  if(ev.target.id==='ip-borrar'){S.meses.clear();S.avisos=[];renderTodo();}
+});
+
+function renderResumen(){
+  var R=informe(), c=R.cur, o=objetivo(), K=TIPOS[R.tipo].k;
+  $('lead-3').textContent=R.titulo+(o?' · '+o:'')+'. Se calcula con los meses cargados del período; los meses sin datos no entran en los promedios ni en las calificaciones.';
+  var h='';
+  if(o) h+='<p class="control" style="margin:0 0 12px"><strong>Barrio / Objetivo:</strong> '+esc(o)+'</p>';
+  if(!c.n){
+    $('resumen').innerHTML=h+'<div class="aviso atencion">No hay meses cargados para este período. Subí los Excel de '+(R.tipo==='anual'?'los meses del año '+R.y:'los meses de '+TIPOS[R.tipo].rango[R.per].toLowerCase()+' de '+R.y)+' en la solapa 2, o elegí otro período.</div>';
+    return;
+  }
+  h+='<div class="aviso'+(c.n<K?' atencion':'')+'" style="margin-bottom:16px">Meses con carga: <strong>'+c.n+' de '+K+'</strong>'+(c.faltan.length?'. Sin datos: '+c.faltan.map(function(m){return MESES[m];}).join(', ')+'.':'.')+(c.difP?' Los meses usan criterios distintos; las calificaciones del período usan los del último mes cargado.':'')+'</div>';
+  var B=bloqueResumen(R);
+  h+='<h3 class="subtitulo" style="margin-top:0">Visitas del período</h3>'+tabla(FRANJAS.concat(['Total','Meta del período','% cumpl. meta']),B.A);
+  h+='<h3 class="subtitulo">Calificación según el promedio mensual</h3>'+tabla(['Indicador','Valor','Calificación','Criterio'],B.B);
+  h+='<h3 class="subtitulo">Detalle de los meses del período</h3>'+tabla(TB.detalle.cab,R.filas.map(TB.detalle.fila))+'<p class="control">'+LEY_CAL+'. % cumpl. meta: rojo menos de 50 %, amarillo 50 a 89 %, verde 90 a 199 %, verde oscuro 200 % o más.</p>';
+  var E=extras(R);
+  if(E){
+    h+='<h3 class="subtitulo">Distribución de calificaciones mensuales (Totales)</h3>'+tabla(['Calificación','Cantidad de meses','% sobre meses con carga'],E.dist);
+    h+='<h3 class="subtitulo">Indicadores destacados del año</h3>'+tabla(['Indicador','Resultado','Valor'],E.ind);
+  }
+  $('resumen').innerHTML=h;
+}
+function renderCalendario(){
+  var V=evolucion(), o=objetivo();
+  var pie=pieEvol(V);
+  $('calendario').innerHTML=(o?'<p class="control" style="margin:0 0 12px"><strong>Barrio / Objetivo:</strong> '+esc(o)+'</p>':'')+
+    '<h3 class="cal-titulo">'+V.titulo+'</h3>'+tabla(TB.evol.cab,V.rows.map(TB.evol.fila),pie)+
+    '<p class="control">'+LEY_CAL+'. Los meses sin datos no se consideran en los totales ni en las calificaciones.</p>';
+}
+
+/* ---- Excel ---- */
+function pintar(x,c,X){
+  if(c.k){x.fill={type:'pattern',pattern:'solid',fgColor:{argb:ARGB[c.k]}}; x.font={bold:c.b,color:{argb:c.k==='verdeosc'?'FFFFFFFF':'FF1C2A35'}};}
+  else if(c.g){x.fill=X.gris; x.font={bold:true};} else x.font={bold:c.b};
+}
+function escribirTabla(ws,r0,cab,filas,X,pie){
+  cab.forEach(function(t,j){var x=ws.getCell(r0,j+1);x.value=t;x.font={bold:true};x.fill=X.gris;x.border=X.borde;x.alignment=Object.assign({wrapText:true},X.centro);});
+  ws.getRow(r0).height=30;
+  var r=r0;
+  filas.concat(pie?[pie]:[]).forEach(function(f){
+    r++;
+    f.forEach(function(c,j){
+      var x=ws.getCell(r,j+1); var num=/^-?\d+$/.test(c.t)&&!c.izq; x.value=num?+c.t:c.t; x.border=X.borde;
+      x.alignment=c.izq?{horizontal:'left',vertical:'middle',wrapText:true}:X.centro; pintar(x,c,X);
+    });
+  });
+  return r;
+}
+async function xlsx(wb,inc,X){
+  var R=informe(), o=objetivo();
+  if(inc.informe){
+    var ws=wb.addWorksheet('Informe'), c=R.cur;
+    ws.mergeCells('A1:L1'); ws.getCell('A1').value=R.titulo; ws.getCell('A1').font={bold:true,size:14};
+    ws.getCell('A2').value='Barrio / Objetivo: '+(o||'-'); ws.getCell('A2').font={bold:true};
+    var r=4;
+    if(!c.n){ ws.getCell('A4').value='No hay meses cargados para este período.'; }
+    else{
+      ws.getCell('A3').value='Meses con carga: '+c.n+' de '+TIPOS[R.tipo].k+(c.faltan.length?' (sin datos: '+c.faltan.map(function(m){return MESES[m];}).join(', ')+')':'');
+      var B=bloqueResumen(R);
+      ws.getCell(r,1).value='Visitas del período'; ws.getCell(r,1).font={bold:true,size:12};
+      r=escribirTabla(ws,r+1,FRANJAS.concat(['Total','Meta del período','% cumpl. meta']),B.A,X)+2;
+      ws.getCell(r,1).value='Calificación según el promedio mensual'; ws.getCell(r,1).font={bold:true,size:12};
+      var r0=r+1; r=escribirTabla(ws,r0,['Indicador','Valor','Calificación','Criterio'],B.B,X);
+      for(var i=r0;i<=r;i++){ws.mergeCells(i,4,i,9);}
+      r+=2;
+      ws.getCell(r,1).value='Detalle de los meses del período'; ws.getCell(r,1).font={bold:true,size:12};
+      r=escribirTabla(ws,r+1,TB.detalle.cab,R.filas.map(TB.detalle.fila),X)+1;
+      ws.getCell(r,1).value=LEY_CAL; ws.getCell(r,1).font={italic:true,size:9}; r+=2;
+      var E=extras(R);
+      if(E){
+        ws.getCell(r,1).value='Distribución de calificaciones mensuales (Totales)'; ws.getCell(r,1).font={bold:true,size:12};
+        r=escribirTabla(ws,r+1,['Calificación','Cantidad de meses','% sobre meses con carga'],E.dist,X)+2;
+        ws.getCell(r,1).value='Indicadores destacados del año'; ws.getCell(r,1).font={bold:true,size:12};
+        r=escribirTabla(ws,r+1,['Indicador','Resultado','Valor'],E.ind,X);
+      }
+    }
+    [34,18,18,18,14,14,16,18,16,16,16,16].forEach(function(w,i){ws.getColumn(i+1).width=w;});
+    ws.pageSetup={orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0};
+  }
+  if(inc.evolucion){
+    var V=evolucion(), w2=wb.addWorksheet('Evolución mensual');
+    w2.mergeCells('A1:N1'); w2.getCell('A1').value=V.titulo; w2.getCell('A1').font={bold:true,size:14};
+    w2.getCell('A2').value='Barrio / Objetivo: '+(o||'-'); w2.getCell('A2').font={bold:true};
+    var pie=pieEvol(V);
+    var rr=escribirTabla(w2,4,TB.evol.cab,V.rows.map(TB.evol.fila),X,pie)+2;
+    w2.getCell(rr,1).value=LEY_CAL+'. Los meses sin datos no se consideran en los totales ni en las calificaciones.'; w2.getCell(rr,1).font={italic:true,size:9};
+    [16,16,16,16,12,13,14,17,16,15,15,15,13,15].forEach(function(w,i){w2.getColumn(i+1).width=w;});
+    w2.views=[{state:'frozen',ySplit:4,xSplit:1}];
+    w2.pageSetup={orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:1};
+  }
+}
+
+/* ---- PDF ---- */
+function pdf(ctx,inc){
+  var R=informe(), o=objetivo(), doc=null, y=0, x0=10, rh=6.6;
+  function pag(titulo,sub){
+    doc=ctx.nueva('landscape'); doc.setDrawColor(120,132,142); doc.setLineWidth(0.2);
+    doc.setTextColor(28,42,53); doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.text(titulo,x0,15);
+    doc.setFontSize(9.5); doc.text('Barrio / Objetivo: '+(o||'-')+(sub?'   ·   '+sub:''),x0,21); y=26;
+  }
+  function rotulo(t){doc.setTextColor(28,42,53);doc.setFont('helvetica','bold');doc.setFontSize(10.5);doc.text(t,x0,y);y+=2.5;}
+  function caja(x,yy,w,h,c,fs,gris){
+    var col=c.k?RGB[c.k]:(gris?[223,230,235]:[255,255,255]); doc.setFillColor(col[0],col[1],col[2]); doc.rect(x,yy,w,h,'FD');
+    doc.setFont('helvetica',(c.b||gris)?'bold':'normal'); doc.setFontSize(fs);
+    if(c.k==='verdeosc') doc.setTextColor(255,255,255); else doc.setTextColor(28,42,53);
+    var t=c.t; while(t.length>1&&doc.getTextWidth(t)>w-2) t=t.slice(0,-1);
+    if(c.izq) doc.text(t,x+1.5,yy+h/2+1.1); else doc.text(t,x+w/2,yy+h/2+1.1,{align:'center'});
+  }
+  function grilla(w,cab,filas,pie,fs){
+    fs=fs||7; var x=x0, tw=w.reduce(function(a,b){return a+b;},0); if(tw<277){var f=277/tw; w=w.map(function(v){return v*f;});}
+    cab.forEach(function(t,j){caja(x,y,w[j],rh+1.2,cT(t,{izq:j===0,b:1}),fs-0.5,true);x+=w[j];}); y+=rh+1.2;
+    filas.concat(pie?[pie]:[]).forEach(function(f){x=x0;f.forEach(function(c,j){caja(x,y,w[j],rh,c,fs,!!c.g);x+=w[j];});y+=rh;});
+    y+=6;
+  }
+  if(inc.informe){
+    pag(R.titulo,R.cur.n?'Meses con carga: '+R.cur.n+' de '+TIPOS[R.tipo].k:'');
+    if(!R.cur.n){ doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.text('No hay meses cargados para este período.',x0,y+4); }
+    else{
+      var B=bloqueResumen(R);
+      rotulo('Visitas del período'); grilla([45,45,45,30,40,40],FRANJAS.concat(['Total','Meta del período','% cumpl. meta']),B.A,null,8);
+      rotulo('Calificación según el promedio mensual');
+      grilla([84,26,50,117],['Indicador','Valor','Calificación','Criterio'],B.B.map(function(f){return f.map(function(c){return c;});}),null,7);
+      rotulo('Detalle de los meses del período'); grilla(TB.detalle.w,TB.detalle.cab,R.filas.map(TB.detalle.fila),null,7);
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(28,42,53); doc.text(LEY_CAL,x0,y-3);
+      var E=extras(R);
+      if(E){
+        pag(R.titulo,'Meses con carga: '+R.cur.n+' de '+TIPOS[R.tipo].k);
+        rotulo('Distribución de calificaciones mensuales (Totales)'); grilla([80,50,60],['Calificación','Cantidad de meses','% sobre meses con carga'],E.dist,null,8);
+        rotulo('Indicadores destacados del año'); grilla([100,60,40],['Indicador','Resultado','Valor'],E.ind,null,8);
+      }
+    }
+  }
+  if(inc.evolucion){
+    var V=evolucion(); pag(V.titulo,'');
+    var pie=pieEvol(V);
+    grilla(TB.evol.w,TB.evol.cab,V.rows.map(TB.evol.fila),pie,7);
+    doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(28,42,53);
+    doc.text(LEY_CAL+'. Los meses sin datos no se consideran en los totales ni en las calificaciones.',x0,y-3);
+  }
+}
+
+return {
+  id:'periodo', nombre:NOMBRE, archivo:'informe', sinMes:true, cargaPropia:true,
+  tabResumen:'Informe del período', tabCalendario:'Evolución mensual',
+  ayudaCarga:'Subí los Excel mensuales del Cuadro de cumplimiento que descargó esta herramienta (uno por mes, de los meses del período). Los archivos se leen en tu navegador y no se envían a ningún lado.',
+  etiquetaPegado:'', placeholder:'', botonResumen:'Ver informe del período',
+  etiqueta:['mes cargado','meses cargados'], palabraOtros:'meses',
+  mensajeVacio:'', textoVacio:'Todavía no hay meses cargados. Subí los Excel mensuales en la solapa Carga de datos para ver esta información.',
+  controlesHtml:controlesHtml(), iniciarControles:iniciarControles, ayudaHtml:ayudaHtml,
+  procesar:function(){return [];}, n:function(){return S.meses.size;}, hayDatos:function(){return S.meses.size>0;},
+  estadoPropio:function(){var n=S.meses.size,R=informe();return NOMBRE+' · '+R.titulo.replace(/^Informe /,'')+': '+(n===0?'sin meses cargados.':n+(n===1?' mes cargado.':' meses cargados.'));},
+  nombreBase:function(){var R=informe();return 'informe_'+R.tipo+(R.tipo==='anual'?'':'_'+(R.per+1))+'_'+R.y;},
+  mesesConDatos:function(){return new Map();}, avisosCarga:function(){return [];}, preview:function(){return '';},
+  renderCargaPropia:renderCargaPropia,
+  renderResumen:renderResumen, renderCalendario:renderCalendario,
+  secciones:[{id:'informe',label:'Informe del período (solapa 3)'},{id:'evolucion',label:'Evolución mensual del año (solapa 4)'}],
+  xlsx:xlsx, pdf:pdf, reiniciar:function(){},
+  _cargar:cargarArchivos, _informe:informe, _evolucion:evolucion, _S:S
+};
+})();
+VARS.periodo=IPD;
 
 /* ---------- arranque ---------- */
 Object.keys(VARS).forEach(function(k){var o=document.createElement('option');o.value=k;o.textContent=VARS[k].nombre;$('variable').appendChild(o);});

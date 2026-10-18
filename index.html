@@ -135,12 +135,15 @@ input.ed{width:100%;min-width:158px;font-variant-numeric:tabular-nums;padding:5p
 .chip{display:inline-block;padding:2px 10px;border-radius:3px;font-weight:600}.chip.c-rojo{background:var(--rojo);color:var(--cell-ink)}.chip.c-amarillo{background:var(--amarillo);color:var(--cell-ink)}.chip.c-verde{background:var(--verde);color:var(--cell-ink)}.chip.c-verdeosc{background:#00703c;color:#fff}
 .muestra.verdeosc{background:#00703c}
 .sin-cal{padding:22px;border:1px dashed var(--line);max-width:640px}
+#empresa-linea{margin:2px 0 6px;font-weight:600;letter-spacing:.01em}
+#empresa-linea:empty{display:none}
 </style>
 </head>
 <body>
 <div class="app">
   <header class="top">
     <h1 id="titulo">Supervisión del objetivo</h1>
+    <p id="empresa-linea"></p>
     <p id="estado" aria-live="polite"></p>
     <div id="banner" class="aviso" role="status" hidden></div>
   </header>
@@ -163,6 +166,13 @@ input.ed{width:100%;min-width:158px;font-variant-numeric:tabular-nums;padding:5p
       <label>Año
         <input id="anio" type="number" min="2000" max="2100" step="1">
       </label>
+      <label>Barrio
+        <input id="empresa" type="text" list="lista-empresas" placeholder="Ej.: Costa Esmeralda" autocomplete="off" style="background:var(--paper);border:1px solid var(--line);border-radius:3px;padding:9px 10px;width:100%">
+      </label>
+      <label>Empresa <span style="font-weight:400">(opcional)</span>
+        <input id="subempresa" type="text" list="lista-subempresas" placeholder="Ej.: GSP" autocomplete="off" style="background:var(--paper);border:1px solid var(--line);border-radius:3px;padding:9px 10px;width:100%">
+      </label>
+      <datalist id="lista-empresas"></datalist><datalist id="lista-subempresas"></datalist>
       <label class="ancho">Variable
         <select id="variable"></select>
       </label>
@@ -236,6 +246,51 @@ var hoy=new Date();
 var state={varId:'permanencia',month:hoy.getMonth(),year:hoy.getFullYear(),filas:[],issues:[],issuesMod:[],skipped:0,notice:'',incl:{}};
 var VARS={};
 function mod(){return VARS[state.varId];}
+/* ---------- barrio (state.empresa) y empresa (state.subempresa): salen en pantalla, en el Excel y en el PDF ---------- */
+state.empresa=''; state.subempresa='';
+var LS_EMP='supervision_empresas_v1';
+function empresaTxt(){var e=state.empresa.trim(), u=state.subempresa.trim(); return e&&u?e+' · '+u:(e||u);}
+function empresaLinea(){var e=state.empresa.trim(), u=state.subempresa.trim(), t=[]; if(e)t.push('Barrio: '+e); if(u)t.push('Empresa: '+u); return t.join('   ·   ');}
+function leerEmpresas(){try{var x=JSON.parse(localStorage.getItem(LS_EMP)||'null');return x&&typeof x==='object'?x:{ult:{e:'',u:''},emp:[],sub:[]};}catch(e){return {ult:{e:'',u:''},emp:[],sub:[]};}}
+function guardarEmpresas(){
+  try{
+    var x=leerEmpresas(), e=state.empresa.trim(), u=state.subempresa.trim();
+    x.ult={e:e,u:u};
+    if(e&&x.emp.indexOf(e)<0) x.emp.unshift(e); if(u&&x.sub.indexOf(u)<0) x.sub.unshift(u);
+    x.emp=x.emp.slice(0,30); x.sub=x.sub.slice(0,30);
+    localStorage.setItem(LS_EMP,JSON.stringify(x));
+  }catch(e){}
+}
+function llenarListas(){
+  var x=leerEmpresas();
+  document.getElementById('lista-empresas').innerHTML=x.emp.map(function(t){return '<option value="'+esc(t)+'">';}).join('');
+  document.getElementById('lista-subempresas').innerHTML=x.sub.map(function(t){return '<option value="'+esc(t)+'">';}).join('');
+}
+function renderEmpresa(){document.getElementById('empresa-linea').textContent=empresaTxt();}
+/* Excel: barrio y empresa van en la primera línea de la celda de título (A1) de cada hoja visible */
+function empresaEnXlsx(wb){
+  var t=empresaLinea(); if(!t) return;
+  wb.eachSheet(function(ws){
+    if(ws.state==='hidden') return;
+    var c=ws.getCell('A1'), v=c.value, tit=(v&&v.richText)?v.richText.map(function(r){return r.text;}).join(''):(v===null||v===undefined?'':String(v));
+    var f=c.font||{bold:true,size:14};
+    c.value={richText:[{text:t+(tit?'\n':''),font:{bold:true,size:11,color:{argb:'FF4A5866'}}},{text:tit,font:Object.assign({},f)}]};
+    c.alignment=Object.assign({},c.alignment||{},{wrapText:true,vertical:'middle'});
+    ws.getRow(1).height=tit?40:20;
+  });
+}
+/* PDF: barrio y empresa van arriba a la derecha de cada página */
+function empresaEnPdf(doc){
+  var t=empresaLinea(); if(!t) return;
+  var n=doc.getNumberOfPages();
+  for(var i=1;i<=n;i++){
+    doc.setPage(i);
+    var w=doc.internal.pageSize.getWidth();
+    doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(74,88,102);
+    doc.text(t,w-10,8,{align:'right'});
+  }
+  doc.setTextColor(28,42,53);
+}
 
 function $(id){return document.getElementById(id);}
 function pad2(n){return (n<10?'0':'')+n;}
@@ -279,7 +334,7 @@ function leerFilas(text){
 
 
 function norm(t){return t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();}
-/* El resto de la fila trae el supervisor y el DNI (separados por tabulador al copiar desde Excel). */
+/* El resto de la fila trae la autoridad y el DNI (separados por tabulador al copiar desde Excel). */
 function leerSupervisor(rest){
   var t=(rest||'').replace(/^[\s;,]+/,'').trim(); if(!t) return null;
   var parts=t.split(/\s*\t+\s*/).filter(function(x){return x;}), nombre='', dni='';
@@ -425,6 +480,13 @@ MESES.forEach(function(nm,i){var o=document.createElement('option');o.value=Stri
 $('mes').value=String(state.month); $('anio').value=String(state.year);
 $('mes').addEventListener('change',function(){state.month=+this.value;state.notice='';renderTodo();});
 $('anio').addEventListener('change',function(){var y=parseInt(this.value,10); if(y>=2000&&y<=2100){state.year=y;state.notice='';renderTodo();} else this.value=String(state.year);});
+(function(){
+  var x=leerEmpresas(); state.empresa=x.ult.e||''; state.subempresa=x.ult.u||'';
+  $('empresa').value=state.empresa; $('subempresa').value=state.subempresa; llenarListas(); renderEmpresa();
+  $('empresa').addEventListener('input',function(){state.empresa=this.value;renderEmpresa();renderTodo();});
+  $('subempresa').addEventListener('input',function(){state.subempresa=this.value;renderEmpresa();renderTodo();});
+  ['empresa','subempresa'].forEach(function(id){$(id).addEventListener('change',function(){guardarEmpresas();llenarListas();});});
+})();
 $('variable').addEventListener('change',function(){state.varId=this.value;renderVariable();procesarModulo();});
 var tmr=null;
 $('pegado').addEventListener('input',function(){clearTimeout(tmr);tmr=setTimeout(procesar,250);});
@@ -472,12 +534,14 @@ function pdfGrid(doc,y,cw,headRows,body,foot,opt){
 async function buildXlsx(){
   var wb=new ExcelJS.Workbook();
   await mod().xlsx(wb,incl(),XL);
+  empresaEnXlsx(wb);
   return await wb.xlsx.writeBuffer();
 }
 function buildPdf(){
   var jsPDF=window.jspdf.jsPDF, doc=null;
   var ctx={nueva:function(o){ if(!doc){doc=new jsPDF({orientation:o,unit:'mm',format:'a4'});} else doc.addPage('a4',o); return doc; }};
   mod().pdf(ctx,incl());
+  empresaEnPdf(doc);
   return doc.output('arraybuffer');
 }
 var dlPromise=(window.claude&&typeof window.claude.use==='function')?window.claude.use('downloads').catch(function(){return null;}):Promise.resolve(null);
@@ -495,7 +559,7 @@ async function guardar(nombre,buf){
     setTimeout(function(){URL.revokeObjectURL(url);},2000); mensaje('Listo: '+nombre);
   }catch(e){ mensaje('En esta vista no se pueden guardar archivos.'); }
 }
-function base(){var m=mod(); return m.nombreBase?m.nombreBase():m.archivo+'_'+slug(MESES[state.month])+'_'+state.year;}
+function base(){var m=mod(), b=m.nombreBase?m.nombreBase():m.archivo+'_'+slug(MESES[state.month])+'_'+state.year, e=slug(empresaTxt()).replace(/^_+|_+$/g,''); return e?e+'_'+b:b;}
 $('btn-xlsx').addEventListener('click',async function(){
   if(!window.ExcelJS){mensaje('No se pudo cargar la librería de Excel. Revisá la conexión y recargá la página.');return;}
   mensaje('Preparando el archivo de Excel...');
@@ -959,19 +1023,19 @@ return {
 VARS.permanencia=PERM;
 
 /* =====================================================================
-   VARIABLE 2: Cantidad de visitas por supervisor (mensual y semanal)
+   VARIABLE 2: Cantidad de visitas por autoridad (mensual y semanal)
    Una visita = un registro (entrada y salida). Se cuenta en el mes y en
    la semana (lunes a domingo) de su entrada, con su permanencia completa.
    ===================================================================== */
 var VIS=(function(){
-var NOMBRE='Cantidad de visitas por supervisor (mensual y semanal)';
+var NOMBRE='Cantidad de visitas por autoridad (mensual y semanal)';
 var S={visitas:[],total:0};
 
 function procesarFilas(filas){
   var issues=[]; S.visitas=[]; S.total=filas.length;
   filas.forEach(function(f){
     var p=leerSupervisor(f.rest);
-    if(!p){issues.push('Fila '+f.n+': falta el nombre del supervisor (tercera columna).');return;}
+    if(!p){issues.push('Fila '+f.n+': falta el nombre de la autoridad (tercera columna).');return;}
     S.visitas.push({a:f.a,b:f.b,n:f.n,nombre:p.nombre,dni:p.dni,key:p.key});
   });
   return issues;
@@ -995,11 +1059,24 @@ function modelo(){
     var dia=d.getUTCDate(); s.dias.set(dia,(s.dias.get(dia)||0)+(v.b-v.a)/1000);
     if(!s.dni&&v.dni) s.dni=v.dni;
   });
-  /* una visita por supervisor y por día: varios ingresos del mismo día cuentan como 1, con la suma de sus tiempos */
+  /* días con presencia: días del mes en que la autoridad estuvo en el objetivo en algún momento,
+     aunque no haya ingresado ese día (por ejemplo, una permanencia del 11 al 13 suma el 11, el 12 y el 13).
+     Se toman todos los ingresos cargados, también los que empezaron el mes anterior.
+     Una salida a las 00:00:00 en punto no suma el día siguiente. */
+  var ini=Date.UTC(y,m,1), fin=Date.UTC(y,m+1,1);
+  S.visitas.forEach(function(v){
+    var a=Math.max(v.a,ini), b=Math.min(v.b>v.a?v.b-1:v.a,fin-1); if(b<a) return;
+    var s=map.get(v.key);
+    if(!s){s={nombre:v.nombre,dni:v.dni,vis:0,seg:0,dias:new Map(),sem:semanas.map(function(){return {v:0,s:0};})};map.set(v.key,s);}
+    if(!s.pres) s.pres=new Set();
+    for(var d0=Math.floor(a/DAY),d1=Math.floor(b/DAY),d=d0;d<=d1;d++) s.pres.add(new Date(d*DAY).getUTCDate());
+  });
+  map.forEach(function(s){s.np=s.pres?s.pres.size:0;});
+  /* una visita por autoridad y por día: varios ingresos del mismo día cuentan como 1, con la suma de sus tiempos */
   map.forEach(function(s){ s.dias.forEach(function(dur,dia){ var w=Math.floor((dia-1+fw)/7); s.vis++; s.seg+=dur; s.sem[w].v++; s.sem[w].s+=dur; }); });
   var filas=Array.from(map.values()).sort(function(a,b){return a.nombre.localeCompare(b.nombre,'es');});
-  var tot={vis:0,seg:0,sem:semanas.map(function(){return {v:0,s:0};})};
-  filas.forEach(function(s){tot.vis+=s.vis;tot.seg+=s.seg;s.sem.forEach(function(x,i){tot.sem[i].v+=x.v;tot.sem[i].s+=x.s;});});
+  var tot={vis:0,np:0,seg:0,sem:semanas.map(function(){return {v:0,s:0};})};
+  filas.forEach(function(s){tot.vis+=s.vis;tot.np+=s.np;tot.seg+=s.seg;s.sem.forEach(function(x,i){tot.sem[i].v+=x.v;tot.sem[i].s+=x.s;});});
   return {y:y,m:m,n:n,semanas:semanas,filas:filas,tot:tot,cargadas:S.visitas.length,delMes:delMes};
 }
 function prom(seg,v){return v?fmt(seg/v):'-';}
@@ -1007,10 +1084,10 @@ function cnt(v){return v?String(v):'-';}
 
 function renderResumen(){
   var M=modelo();
-  $('lead-3').textContent='Cantidad de visitas por supervisor, '+MESES[M.m].toLowerCase()+' '+M.y+'. Cada supervisor cuenta una sola visita por día, aunque haya ingresado varias veces, y su tiempo es la suma de todos sus ingresos de ese día.';
+  $('lead-3').textContent='Cantidad de visitas por autoridad, '+MESES[M.m].toLowerCase()+' '+M.y+'. Cada autoridad cuenta una sola visita por día, aunque haya ingresado varias veces, y su tiempo es la suma de todos sus ingresos de ese día.';
   if(!M.filas.length){ $('resumen').innerHTML='<div class="aviso atencion">No hay visitas con entrada en '+MESES[M.m].toLowerCase()+' '+M.y+'.</div>'; return; }
-  var f1=M.filas.map(function(s){return '<tr><td class="izq">'+esc(s.nombre)+'</td><td>'+esc(s.dni||'-')+'</td><td>'+s.vis+'</td><td>'+fmt(s.seg)+'</td><td>'+prom(s.seg,s.vis)+'</td></tr>';}).join('');
-  var p1='<tr><td class="izq" colspan="2">Total del mes</td><td>'+M.tot.vis+'</td><td>'+fmt(M.tot.seg)+'</td><td>'+prom(M.tot.seg,M.tot.vis)+'</td></tr>';
+  var f1=M.filas.map(function(s){return '<tr><td class="izq">'+esc(s.nombre)+'</td><td>'+esc(s.dni||'-')+'</td><td>'+s.vis+'</td><td>'+cnt(s.np)+'</td><td>'+fmt(s.seg)+'</td><td>'+prom(s.seg,s.vis)+'</td></tr>';}).join('');
+  var p1='<tr><td class="izq" colspan="2">Total del mes</td><td>'+M.tot.vis+'</td><td>'+M.tot.np+'</td><td>'+fmt(M.tot.seg)+'</td><td>'+prom(M.tot.seg,M.tot.vis)+'</td></tr>';
   var h1='<tr>'+M.semanas.map(function(w){return '<th colspan="2" class="sep">Semana '+w.n+'<small>'+corta(w.ini,M.m)+' al '+corta(w.fin,M.m)+'</small></th>';}).join('')+'<th colspan="2" class="sep">Total del mes</th></tr>';
   var h2='<tr>'+M.semanas.map(function(){return '<th class="sep">Visitas</th><th>Tiempo</th>';}).join('')+'<th class="sep">Visitas</th><th>Tiempo</th></tr>';
   var f2=M.filas.map(function(s){return '<tr><td class="izq">'+esc(s.nombre)+'</td>'+s.sem.map(function(x){return '<td class="sep">'+cnt(x.v)+'</td><td>'+fmtCero(x.s)+'</td>';}).join('')+'<td class="sep">'+s.vis+'</td><td>'+fmt(s.seg)+'</td></tr>';}).join('');
@@ -1018,20 +1095,21 @@ function renderResumen(){
   var otros=M.cargadas-M.delMes;
   $('resumen').innerHTML=
     '<h3 class="subtitulo">Resumen mensual</h3>'+
-    '<div class="scroll"><table class="tabla"><thead><tr><th class="izq">Supervisor</th><th>DNI</th><th>Cantidad de visitas</th><th>Tiempo total de visita</th><th>Tiempo promedio por visita</th></tr></thead><tbody>'+f1+'</tbody><tfoot>'+p1+'</tfoot></table></div>'+
+    '<div class="scroll"><table class="tabla"><thead><tr><th class="izq">Autoridad</th><th>DNI</th><th>Cantidad de visitas</th><th>Días con presencia</th><th>Tiempo total de visita</th><th>Tiempo promedio por visita</th></tr></thead><tbody>'+f1+'</tbody><tfoot>'+p1+'</tfoot></table></div>'+
     '<h3 class="subtitulo">Resumen semanal (de lunes a domingo)</h3>'+
-    '<div class="scroll"><table class="tabla"><thead><tr><th class="izq" rowspan="2">Supervisor</th>'+h1.slice(4)+h2+'</thead><tbody>'+f2+'</tbody><tfoot>'+p2+'</tfoot></table></div>'+
-    '<p class="control">Control: se cargaron '+M.cargadas+(M.cargadas===1?' ingreso':' ingresos')+'; '+M.delMes+(M.delMes===1?' tiene':' tienen')+' la entrada en este mes'+(otros?' (los otros '+otros+' son de otros meses)':'')+' y equivalen a '+M.tot.vis+(M.tot.vis===1?' visita':' visitas')+'. Varios ingresos del mismo supervisor en un día cuentan como una sola visita. La primera y la última semana pueden quedar incompletas.</p>';
+    '<div class="scroll"><table class="tabla"><thead><tr><th class="izq" rowspan="2">Autoridad</th>'+h1.slice(4)+h2+'</thead><tbody>'+f2+'</tbody><tfoot>'+p2+'</tfoot></table></div>'+
+    '<p class="control">Control: se cargaron '+M.cargadas+(M.cargadas===1?' ingreso':' ingresos')+'; '+M.delMes+(M.delMes===1?' tiene':' tienen')+' la entrada en este mes'+(otros?' (los otros '+otros+' son de otros meses)':'')+' y equivalen a '+M.tot.vis+(M.tot.vis===1?' visita':' visitas')+'. Varios ingresos de la misma autoridad en un día cuentan como una sola visita. La primera y la última semana pueden quedar incompletas.</p>'+
+    '<p class="control"><strong>Días con presencia:</strong> días del mes en que la autoridad estuvo en el objetivo en algún momento, aunque no haya ingresado ese día. Por ejemplo, una permanencia que entra el 11 y sale el 13 suma 1 visita (el día 11) y 3 días con presencia (11, 12 y 13).</p>';
 }
 function preview(){
   var n=S.visitas.length;
   var filas=S.visitas.slice(0,500).map(function(v){
     return '<tr><td>'+v.n+'</td><td>'+fmtFechaHora(v.a)+'</td><td>'+fmtFechaHora(v.b)+'</td><td class="izq">'+esc(v.nombre)+'</td><td>'+esc(v.dni||'-')+'</td><td>'+fmt((v.b-v.a)/1000)+'</td></tr>';
   }).join('');
-  return '<div class="scroll alto"><table class="tabla"><thead><tr><th>Fila</th><th>Entrada</th><th>Salida</th><th class="izq">Supervisor</th><th>DNI</th><th>Tiempo del ingreso</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+(n>500?'<p class="control">Se muestran los primeros 500 ingresos. Todos se usan en el cálculo.</p>':'');
+  return '<div class="scroll alto"><table class="tabla"><thead><tr><th>Fila</th><th>Entrada</th><th>Salida</th><th class="izq">Autoridad</th><th>DNI</th><th>Tiempo del ingreso</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+(n>500?'<p class="control">Se muestran los primeros 500 ingresos. Todos se usan en el cálculo.</p>':'');
 }
 function avisosCarga(){
-  if(S.total>0&&S.visitas.length===0) return ['<div class="aviso atencion">Para esta variable hace falta pegar también el supervisor (visitante) y el DNI, en la tercera y cuarta columna.</div>'];
+  if(S.total>0&&S.visitas.length===0) return ['<div class="aviso atencion">Para esta variable hace falta pegar también la autoridad (visitante) y el DNI, en la tercera y cuarta columna.</div>'];
   return [];
 }
 
@@ -1042,15 +1120,16 @@ async function xlsx(wb,inc,X){
   function cab(ws,r,c,t){var x=ws.getCell(r,c);x.value=t;x.font={bold:true};x.alignment=Object.assign({wrapText:true},centro);x.border=borde;x.fill=X.gris;return x;}
   function cel(ws,r,c,v,fmtN,bold){var x=ws.getCell(r,c);x.value=v;x.alignment=c===1?{horizontal:'left',vertical:'middle'}:centro;x.border=borde;if(fmtN)x.numFmt=fmtN;if(bold){x.font={bold:true};x.fill=X.gris;}return x;}
   var w1=wb.addWorksheet('Resumen mensual');
-  w1.mergeCells('A1:E1'); w1.getCell('A1').value=titulo; w1.getCell('A1').font={bold:true,size:14};
-  ['Supervisor','DNI','Cantidad de visitas','Tiempo total de visita','Tiempo promedio por visita'].forEach(function(t,i){cab(w1,3,i+1,t);});
-  M.filas.forEach(function(s,i){var r=4+i; cel(w1,r,1,s.nombre); cel(w1,r,2,s.dni||'-'); cel(w1,r,3,s.vis,'0'); cel(w1,r,4,s.seg/86400,TF); cel(w1,r,5,s.vis?s.seg/s.vis/86400:0,TF);});
+  w1.mergeCells('A1:F1'); w1.getCell('A1').value=titulo; w1.getCell('A1').font={bold:true,size:14};
+  ['Autoridad','DNI','Cantidad de visitas','Días con presencia','Tiempo total de visita','Tiempo promedio por visita'].forEach(function(t,i){cab(w1,3,i+1,t);});
+  M.filas.forEach(function(s,i){var r=4+i; cel(w1,r,1,s.nombre); cel(w1,r,2,s.dni||'-'); cel(w1,r,3,s.vis,'0'); cel(w1,r,4,s.np,'0'); cel(w1,r,5,s.seg/86400,TF); cel(w1,r,6,s.vis?s.seg/s.vis/86400:0,TF);});
   var t1=4+M.filas.length;
-  cel(w1,t1,1,'Total del mes',null,true); cel(w1,t1,2,'',null,true); cel(w1,t1,3,M.tot.vis,'0',true); cel(w1,t1,4,M.tot.seg/86400,TF,true); cel(w1,t1,5,M.tot.vis?M.tot.seg/M.tot.vis/86400:0,TF,true);
-  [34,14,18,22,24].forEach(function(w,i){w1.getColumn(i+1).width=w;});
+  cel(w1,t1,1,'Total del mes',null,true); cel(w1,t1,2,'',null,true); cel(w1,t1,3,M.tot.vis,'0',true); cel(w1,t1,4,M.tot.np,'0',true); cel(w1,t1,5,M.tot.seg/86400,TF,true); cel(w1,t1,6,M.tot.vis?M.tot.seg/M.tot.vis/86400:0,TF,true);
+  w1.getCell(t1+2,1).value='Días con presencia: días del mes en que la autoridad estuvo en el objetivo en algún momento, aunque no haya ingresado ese día.'; w1.getCell(t1+2,1).font={italic:true,size:9};
+  [34,14,18,18,22,24].forEach(function(w,i){w1.getColumn(i+1).width=w;});
   var w2=wb.addWorksheet('Resumen semanal'), nc=1+2*(M.semanas.length+1);
   w2.mergeCells(1,1,1,nc); w2.getCell('A1').value=titulo+' (semanas de lunes a domingo)'; w2.getCell('A1').font={bold:true,size:14};
-  cab(w2,3,1,'Supervisor'); cab(w2,4,1,''); w2.mergeCells(3,1,4,1);
+  cab(w2,3,1,'Autoridad'); cab(w2,4,1,''); w2.mergeCells(3,1,4,1);
   M.semanas.forEach(function(w,i){var c=2+2*i; cab(w2,3,c,'Semana '+w.n+' ('+corta(w.ini,M.m)+' al '+corta(w.fin,M.m)+')'); cab(w2,3,c+1,''); w2.mergeCells(3,c,3,c+1); cab(w2,4,c,'Visitas'); cab(w2,4,c+1,'Tiempo');});
   var ct=2+2*M.semanas.length; cab(w2,3,ct,'Total del mes'); cab(w2,3,ct+1,''); w2.mergeCells(3,ct,3,ct+1); cab(w2,4,ct,'Visitas'); cab(w2,4,ct+1,'Tiempo');
   M.filas.forEach(function(s,i){var r=5+i; cel(w2,r,1,s.nombre); s.sem.forEach(function(x,j){cel(w2,r,2+2*j,x.v,'0;-0;"-"'); cel(w2,r,3+2*j,x.s/86400,TF);}); cel(w2,r,ct,s.vis,'0'); cel(w2,r,ct+1,s.seg/86400,TF);});
@@ -1067,15 +1146,17 @@ function pdf(ctx,inc){
   doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(28,42,53);
   doc.text(NOMBRE+': '+MESES[M.m]+' '+M.y,mx,16);
   doc.setFontSize(11); doc.text('Resumen mensual',mx,25);
-  var y=pdfGrid(doc,28,[110,32,30,50,55],[['Supervisor','DNI','Cantidad de visitas','Tiempo total de visita','Tiempo promedio por visita']],
-    M.filas.map(function(s){return [s.nombre,s.dni||'-',String(s.vis),fmt(s.seg),prom(s.seg,s.vis)];}),
-    ['Total del mes','',String(M.tot.vis),fmt(M.tot.seg),prom(M.tot.seg,M.tot.vis)]);
+  var y=pdfGrid(doc,28,[92,28,32,32,45,48],[['Autoridad','DNI','Cantidad de visitas','Días con presencia','Tiempo total de visita','Tiempo promedio por visita']],
+    M.filas.map(function(s){return [s.nombre,s.dni||'-',String(s.vis),cnt(s.np),fmt(s.seg),prom(s.seg,s.vis)];}),
+    ['Total del mes','',String(M.tot.vis),String(M.tot.np),fmt(M.tot.seg),prom(M.tot.seg,M.tot.vis)]);
+  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(28,42,53);
+  doc.text('Días con presencia: días del mes en que la autoridad estuvo en el objetivo en algún momento, aunque no haya ingresado ese día.',mx,y+5); y+=5;
   y+=10; if(y>150){doc.addPage('a4','landscape');y=16;}
   doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(28,42,53);
   doc.text('Resumen semanal (de lunes a domingo)',mx,y); y+=3;
   var k=M.semanas.length+1, first=62, wcol=(277-first)/(2*k), cw=[first];
   for(var i=0;i<2*k;i++) cw.push(wcol);
-  var row1=[''], row2=['Supervisor'];
+  var row1=[''], row2=['Autoridad'];
   M.semanas.forEach(function(w){row1.push({t:'Sem. '+w.n+' ('+corta(w.ini,M.m)+' al '+corta(w.fin,M.m)+')',span:2}); row2.push('Visitas','Tiempo');});
   row1.push({t:'Total del mes',span:2}); row2.push('Visitas','Tiempo');
   var body=M.filas.map(function(s){var r=[s.nombre]; s.sem.forEach(function(x){r.push(cnt(x.v),fmtCero(x.s));}); r.push(String(s.vis),fmt(s.seg)); return r;});
@@ -1084,15 +1165,15 @@ function pdf(ctx,inc){
 }
 
 return {
-  id:'visitas', nombre:NOMBRE, archivo:'visitas_supervisor',
-  tabResumen:'Visitas por supervisor', tabCalendario:null,
-  ayudaCarga:'Copiá las cuatro columnas de tu Excel (fecha de entrada, fecha de salida, supervisor y DNI) y pegalas acá. El formato de fecha esperado es dd/mm/aaaa hh:mm:ss. Los datos se procesan en tu navegador.',
-  etiquetaPegado:'Fecha de entrada, fecha de salida, supervisor y DNI',
+  id:'visitas', nombre:NOMBRE, archivo:'visitas_autoridad',
+  tabResumen:'Visitas por autoridad', tabCalendario:null,
+  ayudaCarga:'Copiá las cuatro columnas de tu Excel (fecha de entrada, fecha de salida, autoridad y DNI) y pegalas acá. El formato de fecha esperado es dd/mm/aaaa hh:mm:ss. Los datos se procesan en tu navegador.',
+  etiquetaPegado:'Fecha de entrada, fecha de salida, autoridad y DNI',
   placeholder:'23/09/2026 14:10:22\t23/09/2026 14:36:51\tAPELLIDO, NOMBRE\t12345678',
-  botonResumen:'Ver visitas por supervisor',
+  botonResumen:'Ver visitas por autoridad',
   etiqueta:['ingreso válido','ingresos válidos'], palabraOtros:'ingresos',
-  mensajeVacio:'No se encontraron ingresos. Revisá que estés pegando fecha de entrada, fecha de salida, supervisor y DNI.',
-  ayudaHtml:function(){return 'Cada supervisor cuenta una sola visita por día: si ingresa varias veces el mismo día, es una visita y su tiempo es la suma de todos sus ingresos de ese día. Se cuentan los días cuya entrada cae en el mes elegido. Las semanas van de lunes a domingo, así que la primera y la última pueden quedar incompletas.';},
+  mensajeVacio:'No se encontraron ingresos. Revisá que estés pegando fecha de entrada, fecha de salida, autoridad y DNI.',
+  ayudaHtml:function(){return 'Cada autoridad cuenta una sola visita por día: si ingresa varias veces el mismo día, es una visita y su tiempo es la suma de todos sus ingresos de ese día. Se cuentan los días cuya entrada cae en el mes elegido. La columna Días con presencia cuenta, en cambio, todos los días del mes en que la autoridad estuvo en el objetivo, aunque no haya ingresado ese día (una permanencia del 11 al 13 es 1 visita y 3 días con presencia). Las semanas van de lunes a domingo, así que la primera y la última pueden quedar incompletas.';},
   procesar:procesarFilas, n:function(){return S.visitas.length;}, hayDatos:function(){return S.visitas.length>0;},
   estadoTxt:function(){var n=S.visitas.length;return n===0?'sin ingresos cargados.':n+(n===1?' ingreso cargado.':' ingresos cargados.');},
   mesesConDatos:mesesConDatos, avisosCarga:avisosCarga, preview:preview,
@@ -1114,14 +1195,14 @@ var FRA=(function(){
 var NOMBRE='Cantidad de visitas por franja horaria';
 var FRANJAS=['06:00 - 14:00 hs.','14:00 - 22:00 hs.','22:00 - 06:00 hs.'];
 var S={visitas:[],total:0,thr:2,sup:''};
-var NOTA_TOTAL='El total del día cuenta a cada supervisor una sola vez; si estuvo en dos franjas el mismo día, figura en ambas franjas.';
+var NOTA_TOTAL='El total del día cuenta a cada autoridad una sola vez; si estuvo en dos franjas el mismo día, figura en ambas franjas.';
 
 function franjaDe(ms){var h=new Date(ms).getUTCHours();return h>=6&&h<14?0:(h>=14&&h<22?1:2);}
 function procesarFilas(filas){
   var issues=[]; S.visitas=[]; S.total=filas.length;
   filas.forEach(function(f){
     var p=leerSupervisor(f.rest);
-    if(!p){issues.push('Fila '+f.n+': falta el nombre del supervisor (tercera columna).');return;}
+    if(!p){issues.push('Fila '+f.n+': falta el nombre de la autoridad (tercera columna).');return;}
     S.visitas.push({a:f.a,b:f.b,n:f.n,nombre:p.nombre,dni:p.dni,key:p.key});
   });
   if(S.sup&&!S.visitas.some(function(v){return v.key===S.sup;})) S.sup='';
@@ -1147,7 +1228,7 @@ function modelo(){
     filtradas++;
     var q=sets[dt.getUTCDate()-1], k=franjaDe(v.a); q.s.add(v.key); q.f[k].add(v.key);
   });
-  /* un supervisor cuenta una vez por día (total del día) y una vez por franja: varios ingresos en la misma franja del mismo día son 1 */
+  /* una autoridad cuenta una vez por día (total del día) y una vez por franja: varios ingresos en la misma franja del mismo día son 1 */
   rows.forEach(function(r,i){ var q=sets[i]; r.total=q.s.size; for(var k=0;k<3;k++){r.f[k]=q.f[k].size;tot[k]+=r.f[k];} totalMes+=r.total; });
   return {y:y,m:m,n:n,rows:rows,tot:tot,total:totalMes,delMes:delMes,contadas:filtradas,cargadas:S.visitas.length};
 }
@@ -1164,12 +1245,12 @@ function estTxt(e){
 }
 function titulo(M){return NOMBRE+': '+MESES[M.m]+' '+M.y+(S.sup?' · '+nombreSup():'');}
 function selectorHtml(){
-  var opts='<option value="">Todos los supervisores</option>'+supervisores().map(function(x){return '<option value="'+esc(x[0])+'"'+(x[0]===S.sup?' selected':'')+'>'+esc(x[1])+'</option>';}).join('');
-  return '<div class="campos" style="margin-bottom:18px"><label>Supervisor<select class="sel-sup">'+opts+'</select></label></div>';
+  var opts='<option value="">Todas las autoridades</option>'+supervisores().map(function(x){return '<option value="'+esc(x[0])+'"'+(x[0]===S.sup?' selected':'')+'>'+esc(x[1])+'</option>';}).join('');
+  return '<div class="campos" style="margin-bottom:18px"><label>Autoridad<select class="sel-sup">'+opts+'</select></label></div>';
 }
 function ayudaHtml(){
   var n=S.thr;
-  return 'En el calendario, cada franja se pinta de rojo si no hubo visitas, '+(n>1?'de amarillo si hubo '+(n===2?'una sola visita':'menos de '+n+' visitas')+' y ':'')+'de verde si hubo '+n+(n===1?' visita o más':' visitas o más')+'. Cada supervisor cuenta una sola visita por franja y por día, aunque haya ingresado varias veces en esa franja; la franja se toma por la hora de entrada. Después, en las solapas 3 y 4, podés ver todos los supervisores juntos o elegir uno.';
+  return 'En el calendario, cada franja se pinta de rojo si no hubo visitas, '+(n>1?'de amarillo si hubo '+(n===2?'una sola visita':'menos de '+n+' visitas')+' y ':'')+'de verde si hubo '+n+(n===1?' visita o más':' visitas o más')+'. Cada autoridad cuenta una sola visita por franja y por día, aunque haya ingresado varias veces en esa franja; la franja se toma por la hora de entrada. Después, en las solapas 3 y 4, podés ver todas las autoridades juntas o elegir una.';
 }
 function iniciarControles(){
   var u=$('umbral-vis'); if(!u) return; u.value=String(S.thr);
@@ -1178,7 +1259,7 @@ function iniciarControles(){
 
 function renderResumen(){
   var M=modelo();
-  $('lead-3').textContent=NOMBRE+', '+MESES[M.m].toLowerCase()+' '+M.y+(S.sup?', supervisor '+nombreSup():', todos los supervisores')+'. Cada supervisor cuenta una sola visita por franja y por día, según la hora de su entrada.';
+  $('lead-3').textContent=NOMBRE+', '+MESES[M.m].toLowerCase()+' '+M.y+(S.sup?', autoridad '+nombreSup():', todas las autoridades')+'. Cada autoridad cuenta una sola visita por franja y por día, según la hora de su entrada.';
   function c(n){return '<td'+(n===0?' class="cero"':'')+'>'+(n===0?'-':n)+'</td>';}
   var filas=M.rows.map(function(r){return '<tr><td>'+fmtFecha(M.y,M.m,r.d)+'</td><td class="izq">'+DIAS[r.wd]+'</td>'+c(r.total)+c(r.f[0])+c(r.f[1])+c(r.f[2])+'</tr>';}).join('');
   var pie='<tr><td class="izq" colspan="2">Total del mes</td><td>'+M.total+'</td><td>'+M.tot[0]+'</td><td>'+M.tot[1]+'</td><td>'+M.tot[2]+'</td></tr>';
@@ -1214,10 +1295,10 @@ function preview(){
   var filas=S.visitas.slice(0,500).map(function(v){
     return '<tr><td>'+v.n+'</td><td>'+fmtFechaHora(v.a)+'</td><td>'+fmtFechaHora(v.b)+'</td><td class="izq">'+esc(v.nombre)+'</td><td>'+esc(v.dni||'-')+'</td><td>'+FRANJAS[franjaDe(v.a)]+'</td></tr>';
   }).join('');
-  return '<div class="scroll alto"><table class="tabla"><thead><tr><th>Fila</th><th>Entrada</th><th>Salida</th><th class="izq">Supervisor</th><th>DNI</th><th>Franja de la visita</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+(n>500?'<p class="control">Se muestran los primeros 500 ingresos. Todos se usan en el cálculo.</p>':'');
+  return '<div class="scroll alto"><table class="tabla"><thead><tr><th>Fila</th><th>Entrada</th><th>Salida</th><th class="izq">Autoridad</th><th>DNI</th><th>Franja de la visita</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+(n>500?'<p class="control">Se muestran los primeros 500 ingresos. Todos se usan en el cálculo.</p>':'');
 }
 function avisosCarga(){
-  if(S.total>0&&S.visitas.length===0) return ['<div class="aviso atencion">Para esta variable hace falta pegar también el supervisor (visitante) y el DNI, en la tercera y cuarta columna.</div>'];
+  if(S.total>0&&S.visitas.length===0) return ['<div class="aviso atencion">Para esta variable hace falta pegar también la autoridad (visitante) y el DNI, en la tercera y cuarta columna.</div>'];
   return [];
 }
 
@@ -1309,12 +1390,12 @@ document.addEventListener('change',function(ev){
 return {
   id:'franjas', nombre:NOMBRE, archivo:'visitas_por_franja',
   tabResumen:'Visitas por día y franja', tabCalendario:'Calendario',
-  ayudaCarga:'Copiá las cuatro columnas de tu Excel (fecha de entrada, fecha de salida, supervisor y DNI) y pegalas acá. El formato de fecha esperado es dd/mm/aaaa hh:mm:ss. Los datos se procesan en tu navegador.',
-  etiquetaPegado:'Fecha de entrada, fecha de salida, supervisor y DNI',
+  ayudaCarga:'Copiá las cuatro columnas de tu Excel (fecha de entrada, fecha de salida, autoridad y DNI) y pegalas acá. El formato de fecha esperado es dd/mm/aaaa hh:mm:ss. Los datos se procesan en tu navegador.',
+  etiquetaPegado:'Fecha de entrada, fecha de salida, autoridad y DNI',
   placeholder:'23/09/2026 14:10:22\t23/09/2026 14:36:51\tAPELLIDO, NOMBRE\t12345678',
   botonResumen:'Ver visitas por franja',
   etiqueta:['ingreso válido','ingresos válidos'], palabraOtros:'ingresos',
-  mensajeVacio:'No se encontraron ingresos. Revisá que estés pegando fecha de entrada, fecha de salida, supervisor y DNI.',
+  mensajeVacio:'No se encontraron ingresos. Revisá que estés pegando fecha de entrada, fecha de salida, autoridad y DNI.',
   controlesHtml:'<label>Visitas para verde (cantidad mínima)<input id="umbral-vis" type="number" min="1" step="1" value="2"></label>',
   iniciarControles:iniciarControles, ayudaHtml:ayudaHtml,
   procesar:procesarFilas, n:function(){return S.visitas.length;}, hayDatos:function(){return S.visitas.length>0;},
@@ -1333,7 +1414,7 @@ VARS.franjas=FRA;
    VARIABLE 4: Cuadro de cumplimiento mensual
    Grilla día de la semana x franja con la cantidad de visitas del mes
    y tres indicadores con calificación (Totales, Nocturnas, Distribución).
-   Cada visita se cuenta una vez por supervisor, día y franja de entrada.
+   Cada visita se cuenta una vez por autoridad, día y franja de entrada.
    ===================================================================== */
 var CUM=(function(){
 var NOMBRE='Cuadro de cumplimiento mensual';
@@ -1353,7 +1434,7 @@ function procesarFilas(filas){
   var issues=[]; S.visitas=[]; S.total=filas.length;
   filas.forEach(function(f){
     var p=leerSupervisor(f.rest);
-    if(!p){issues.push('Fila '+f.n+': falta el nombre del supervisor (tercera columna).');return;}
+    if(!p){issues.push('Fila '+f.n+': falta el nombre de la autoridad (tercera columna).');return;}
     S.visitas.push({a:f.a,b:f.b,n:f.n,nombre:p.nombre,dni:p.dni,key:p.key});
   });
   return issues;
@@ -1405,25 +1486,23 @@ function indicadores(M){
 }
 function titulo(M){return NOMBRE+': '+MESES[M.m]+' '+M.y;}
 function ayudaHtml(){
-  return 'Arma la grilla de visitas del mes por día de la semana y franja, con tres indicadores (Totales, Nocturnas y Distribución) y su calificación. Cada supervisor cuenta una sola visita por día y franja, según su hora de entrada; si vuelve en otra franja o en otro día, es otra visita. Los criterios se pueden cambiar en la sección "Criterios de cumplimiento".';
+  return 'Arma la grilla de visitas del mes por día de la semana y franja, con tres indicadores (Totales, Nocturnas y Distribución) y su calificación. Cada autoridad cuenta una sola visita por día y franja, según su hora de entrada; si vuelve en otra franja o en otro día, es otra visita. Los criterios se pueden cambiar en la sección "Criterios de cumplimiento".';
 }
 function controlesHtml(){
   var campos=CAMPOS.map(function(c){return '<label>'+c[1]+'<input class="cp-num" data-k="'+c[0]+'" type="number" min="0" step="1" value="'+S.p[c[0]]+'"></label>';}).join('');
-  return '<label class="ancho">Barrio / Objetivo<input id="cp-obj" type="text" value="'+esc(S.obj)+'" placeholder="Nombre del barrio u objetivo" style="background:var(--paper);border:1px solid var(--line);border-radius:3px;padding:9px 10px;width:100%"></label>'+
-    '<details class="ancho"><summary style="cursor:pointer;font-weight:500">Criterios de cumplimiento (editables)</summary><div class="campos" style="margin-top:14px">'+campos+'<div class="ancho"><button type="button" class="sec" id="cp-reset">Volver a los valores originales</button></div></div></details>';
+  return '<details class="ancho"><summary style="cursor:pointer;font-weight:500">Criterios de cumplimiento (editables)</summary><div class="campos" style="margin-top:14px">'+campos+'<div class="ancho"><button type="button" class="sec" id="cp-reset">Volver a los valores originales</button></div></div></details>';
 }
 function iniciarControles(){
-  var o=$('cp-obj'); if(o) o.addEventListener('input',function(){S.obj=this.value;renderTodo();});
   document.querySelectorAll('.cp-num').forEach(function(i){
     i.addEventListener('input',function(){var v=parseInt(this.value,10); if(v>=0){S.p[this.dataset.k]=v;renderTodo();}});
   });
   var r=$('cp-reset'); if(r) r.addEventListener('click',function(){S.p=Object.assign({},DEF);document.querySelectorAll('.cp-num').forEach(function(i){i.value=String(S.p[i.dataset.k]);});renderTodo();});
 }
-function objTxt(){return S.obj.trim();}
+function objTxt(){return state.empresa.trim();}  /* el barrio sale del campo Barrio de la solapa 1 */
 
 function renderResumen(){
   var M=modelo();
-  $('lead-3').textContent=titulo(M)+(objTxt()?' · '+objTxt():'')+'. Cada supervisor cuenta una sola visita por día y franja, según la hora de su entrada.';
+  $('lead-3').textContent=titulo(M)+(objTxt()?' · '+objTxt():'')+'. Cada autoridad cuenta una sola visita por día y franja, según la hora de su entrada.';
   var cab='<th class="izq">Franja horaria</th>'+DIAS.map(function(d){return '<th>'+d+'</th>';}).join('')+'<th>Total</th>';
   var filas=M.g.map(function(r,f){
     return '<tr><td class="izq">'+FRANJAS[f]+'</td>'+r.map(function(n){return '<td class="c-'+estCel(n)+'">'+n+'</td>';}).join('')+'<td class="c-'+estFranja(M.tf[f])+'">'+M.tf[f]+'</td></tr>';
@@ -1434,23 +1513,23 @@ function renderResumen(){
   }).join('');
   var otros=M.cargadas-M.delMes;
   $('resumen').innerHTML=
-    (objTxt()?'<p class="control" style="margin:0 0 12px"><strong>Barrio / Objetivo:</strong> '+esc(objTxt())+'</p>':'')+
+    (objTxt()?'<p class="control" style="margin:0 0 12px"><strong>Barrio:</strong> '+esc(objTxt())+'</p>':'')+
     '<h3 class="subtitulo" style="margin-top:0">Visitas del mes por día de la semana y franja</h3>'+
     '<div class="scroll"><table class="tabla"><thead><tr>'+cab+'</tr></thead><tbody>'+filas+'</tbody><tfoot>'+pie+'</tfoot></table></div>'+
     '<div class="leyenda" style="margin-top:12px"><span class="item"><i class="muestra rojo"></i>Sin visitas</span>'+(S.p.cel>1?'<span class="item"><i class="muestra amarillo"></i>'+(S.p.cel===2?'1 visita':'De 1 a '+(S.p.cel-1)+' visitas')+'</span>':'')+'<span class="item"><i class="muestra verde"></i>'+S.p.cel+(S.p.cel===1?' visita o más':' visitas o más')+' (el color de la columna Total sigue la escala de nocturnas: '+S.p.nSAT+' o más, verde; '+S.p.nPST+' a '+(S.p.nSAT-1)+', amarillo)</span></div>'+
     '<h3 class="subtitulo">Cuadro de cumplimiento</h3>'+
     '<div class="scroll"><table class="tabla"><thead><tr><th class="izq">Indicador</th><th>Resultado</th><th class="izq">Calificación</th><th class="izq">Criterio</th></tr></thead><tbody>'+ind+'</tbody></table></div>'+
-    '<p class="control">Control: se cargaron '+M.cargadas+(M.cargadas===1?' ingreso':' ingresos')+'; '+M.delMes+(M.delMes===1?' tiene':' tienen')+' la entrada en este mes'+(otros?' (los otros '+otros+' son de otros meses)':'')+' y forman '+M.total+(M.total===1?' visita':' visitas')+' en total (cada supervisor cuenta una vez por día; en la grilla, una vez por franja, así que la suma de las franjas, '+(M.tf[0]+M.tf[1]+M.tf[2])+', puede ser mayor que el total).</p>';
+    '<p class="control">Control: se cargaron '+M.cargadas+(M.cargadas===1?' ingreso':' ingresos')+'; '+M.delMes+(M.delMes===1?' tiene':' tienen')+' la entrada en este mes'+(otros?' (los otros '+otros+' son de otros meses)':'')+' y forman '+M.total+(M.total===1?' visita':' visitas')+' en total (cada autoridad cuenta una vez por día; en la grilla, una vez por franja, así que la suma de las franjas, '+(M.tf[0]+M.tf[1]+M.tf[2])+', puede ser mayor que el total).</p>';
 }
 function preview(){
   var n=S.visitas.length;
   var filas=S.visitas.slice(0,500).map(function(v){
     return '<tr><td>'+v.n+'</td><td>'+fmtFechaHora(v.a)+'</td><td>'+fmtFechaHora(v.b)+'</td><td class="izq">'+esc(v.nombre)+'</td><td>'+esc(v.dni||'-')+'</td><td>'+FRANJAS[franjaDe(v.a)]+'</td></tr>';
   }).join('');
-  return '<div class="scroll alto"><table class="tabla"><thead><tr><th>Fila</th><th>Entrada</th><th>Salida</th><th class="izq">Supervisor</th><th>DNI</th><th>Franja de la visita</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+(n>500?'<p class="control">Se muestran los primeros 500 ingresos. Todos se usan en el cálculo.</p>':'');
+  return '<div class="scroll alto"><table class="tabla"><thead><tr><th>Fila</th><th>Entrada</th><th>Salida</th><th class="izq">Autoridad</th><th>DNI</th><th>Franja de la visita</th></tr></thead><tbody>'+filas+'</tbody></table></div>'+(n>500?'<p class="control">Se muestran los primeros 500 ingresos. Todos se usan en el cálculo.</p>':'');
 }
 function avisosCarga(){
-  if(S.total>0&&S.visitas.length===0) return ['<div class="aviso atencion">Para esta variable hace falta pegar también el supervisor (visitante) y el DNI, en la tercera y cuarta columna.</div>'];
+  if(S.total>0&&S.visitas.length===0) return ['<div class="aviso atencion">Para esta variable hace falta pegar también la autoridad (visitante) y el DNI, en la tercera y cuarta columna.</div>'];
   return [];
 }
 
@@ -1462,7 +1541,6 @@ async function xlsx(wb,inc,X){
   function cel(r,c,v,o){o=o||{};var x=ws.getCell(r,c);x.value=v;x.alignment=o.izq?{horizontal:'left',vertical:'middle',wrapText:true}:centro;x.border=borde;
     if(o.gris){x.fill=X.gris;} x.font={bold:!!o.b}; if(o.k)fill(x,o.k); return x;}
   ws.mergeCells('A1:I1'); ws.getCell('A1').value=titulo(M); ws.getCell('A1').font={bold:true,size:14};
-  ws.getCell('A2').value='Barrio / Objetivo: '+(objTxt()||'-'); ws.getCell('A2').font={bold:true};
   cel(4,1,'Franja horaria',{gris:1,b:1,izq:1});
   DIAS.forEach(function(d,i){cel(4,2+i,d,{gris:1,b:1});}); cel(4,9,'Total',{gris:1,b:1});
   M.g.forEach(function(r,f){
@@ -1478,14 +1556,14 @@ async function xlsx(wb,inc,X){
     var r=12+j; cel(r,1,i.n,{izq:1}); cel(r,2,i.v,{k:i.c,b:1}); cel(r,3,i.cal||'-',{k:i.cal?i.c:null}); ws.mergeCells(r,3,r,4);
     cel(r,5,i.crit,{izq:1}); ws.mergeCells(r,5,r,9); ws.getRow(r).height=32;
   });
-  ws.getCell('A17').value='Cada supervisor cuenta una sola visita por día y franja, según la hora de su entrada. El total (por día y del mes) cuenta a cada supervisor una sola vez por día; si estuvo en dos franjas el mismo día, figura en ambas franjas pero suma una sola vez al total.';
+  ws.getCell('A17').value='Cada autoridad cuenta una sola visita por día y franja, según la hora de su entrada. El total (por día y del mes) cuenta a cada autoridad una sola vez por día; si estuvo en dos franjas el mismo día, figura en ambas franjas pero suma una sola vez al total.';
   ws.getCell('A17').font={italic:true,size:9};
   [34,13,13,13,13,13,13,13,13].forEach(function(w,i){ws.getColumn(i+1).width=w;});
   ws.getRow(4).height=22;
   ws.pageSetup={orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:1};
   /* hoja oculta con los datos del mes: permite armar luego los informes trimestral, semestral y anual */
   var wd=wb.addWorksheet('datos_cumplimiento',{state:'hidden'}), P=S.p;
-  wd.addRow(['marca','CUADRO_CUMPLIMIENTO_V1']); wd.addRow(['anio',M.y]); wd.addRow(['mes',M.m]); wd.addRow(['objetivo',objTxt()]);
+  wd.addRow(['marca','CUADRO_CUMPLIMIENTO_V1']); wd.addRow(['anio',M.y]); wd.addRow(['mes',M.m]); wd.addRow(['objetivo',objTxt()]); wd.addRow(['barrio',state.empresa.trim()]); wd.addRow(['empresa',state.subempresa.trim()]);
   Object.keys(DEF).forEach(function(k){wd.addRow(['p_'+k,P[k]]);});
   wd.addRow(['total',M.total]);
   M.g.forEach(function(r,f){wd.addRow(['g'+f].concat(r));});
@@ -1505,8 +1583,7 @@ function pdf(ctx,inc){
   }
   doc.setDrawColor(120,132,142); doc.setLineWidth(0.2);
   doc.setTextColor(28,42,53); doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.text(titulo(M),x0,16);
-  doc.setFontSize(10); doc.text('Barrio / Objetivo: '+(objTxt()||'-'),x0,23);
-  var cw=[46,27,27,27,27,27,27,27,27], y=29, x;
+  var cw=[46,27,27,27,27,27,27,27,27], y=23, x;
   x=x0; ['Franja horaria'].concat(DIAS,['Total']).forEach(function(t,i){caja(x,y,cw[i],rh,t,null,{gris:1,b:1,izq:i===0});x+=cw[i];});
   M.g.forEach(function(r,f){
     y+=rh; x=x0; caja(x,y,cw[0],rh,FRANJAS[f],null,{izq:1}); x+=cw[0];
@@ -1528,18 +1605,18 @@ function pdf(ctx,inc){
     caja(x,y,w2[3],rh,i.crit.replace(/ o más/g,' o mas').replace(/ y /g,' y '),null,{izq:1,fs:7});
   });
   y+=rh+7; doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(28,42,53);
-  doc.text(doc.splitTextToSize('Cada supervisor cuenta una sola visita por día y franja, según la hora de su entrada. El total (por día y del mes) cuenta a cada supervisor una sola vez por día; si estuvo en dos franjas el mismo día, figura en ambas franjas pero suma una sola vez al total.',255),x0,y);
+  doc.text(doc.splitTextToSize('Cada autoridad cuenta una sola visita por día y franja, según la hora de su entrada. El total (por día y del mes) cuenta a cada autoridad una sola vez por día; si estuvo en dos franjas el mismo día, figura en ambas franjas pero suma una sola vez al total.',255),x0,y);
 }
 
 return {
   id:'cumplimiento', nombre:NOMBRE, archivo:'cuadro_de_cumplimiento',
   tabResumen:'Cuadro de cumplimiento', tabCalendario:'Calendario',
-  ayudaCarga:'Copiá las cuatro columnas de tu Excel (fecha de entrada, fecha de salida, supervisor y DNI) y pegalas acá. El formato de fecha esperado es dd/mm/aaaa hh:mm:ss. Los datos se procesan en tu navegador.',
-  etiquetaPegado:'Fecha de entrada, fecha de salida, supervisor y DNI',
+  ayudaCarga:'Copiá las cuatro columnas de tu Excel (fecha de entrada, fecha de salida, autoridad y DNI) y pegalas acá. El formato de fecha esperado es dd/mm/aaaa hh:mm:ss. Los datos se procesan en tu navegador.',
+  etiquetaPegado:'Fecha de entrada, fecha de salida, autoridad y DNI',
   placeholder:'23/09/2026 14:10:22\t23/09/2026 14:36:51\tAPELLIDO, NOMBRE\t12345678',
   botonResumen:'Ver cuadro de cumplimiento',
   etiqueta:['ingreso válido','ingresos válidos'], palabraOtros:'ingresos',
-  mensajeVacio:'No se encontraron ingresos. Revisá que estés pegando fecha de entrada, fecha de salida, supervisor y DNI.',
+  mensajeVacio:'No se encontraron ingresos. Revisá que estés pegando fecha de entrada, fecha de salida, autoridad y DNI.',
   controlesHtml:controlesHtml(),
   iniciarControles:iniciarControles, ayudaHtml:ayudaHtml,
   procesar:procesarFilas, n:function(){return S.visitas.length;}, hayDatos:function(){return S.visitas.length>0;},
@@ -1761,13 +1838,13 @@ function renderCargaPropia(){
   html+='<div class="acciones" style="margin-top:0"><button class="sec" id="ip-borrar"'+(n?'':' disabled')+'>Quitar todos los archivos</button></div>';
   var msgs=[];
   if(S.avisos.length) msgs.push('<div class="aviso atencion"><ul style="margin:0;padding-left:18px">'+S.avisos.map(function(t){return '<li>'+esc(t)+'</li>';}).join('')+'</ul></div>');
-  if(objetivosDistintos()) msgs.push('<div class="aviso atencion">Los archivos tienen distintos Barrio / Objetivo. El informe usa el del archivo más reciente.</div>');
+  if(objetivosDistintos()) msgs.push('<div class="aviso atencion">Los archivos son de distintos barrios. El informe usa el del archivo más reciente.</div>');
   if(n) msgs.push('<div class="aviso">Hay <strong>'+n+'</strong> '+(n===1?'mes cargado':'meses cargados')+'.</div>');
   else msgs.push('<div class="aviso atencion">Todavía no hay archivos. Subí los Excel mensuales del período que querés analizar.</div>');
   html+='<div class="mensajes" style="margin-top:14px">'+msgs.join('')+'</div>';
   if(n){
     var lst=Array.from(S.meses.entries()).sort(function(a,b){return a[0]-b[0];});
-    html+='<div class="scroll alto" style="margin-top:18px"><table class="tabla"><thead><tr><th class="izq">Mes</th><th>Año</th><th class="izq">Barrio / Objetivo</th><th>Visitas del mes</th><th class="izq">Archivo</th><th></th></tr></thead><tbody>'+
+    html+='<div class="scroll alto" style="margin-top:18px"><table class="tabla"><thead><tr><th class="izq">Mes</th><th>Año</th><th class="izq">Barrio</th><th>Visitas del mes</th><th class="izq">Archivo</th><th></th></tr></thead><tbody>'+
       lst.map(function(e){var d=e[1];return '<tr><td class="izq">'+MESES[d.m]+'</td><td>'+d.y+'</td><td class="izq">'+esc(d.obj||'-')+'</td><td>'+d.total+'</td><td class="izq">'+esc(d.archivo)+'</td><td><button class="sec ip-quitar" data-k="'+e[0]+'">Quitar</button></td></tr>';}).join('')+'</tbody></table></div>';
   }
   $('carga-propia').innerHTML=html;
@@ -1787,7 +1864,7 @@ function renderResumen(){
   var R=informe(), c=R.cur, o=objetivo(), K=TIPOS[R.tipo].k;
   $('lead-3').textContent=R.titulo+(o?' · '+o:'')+'. Se calcula con los meses cargados del período; los meses sin datos no entran en los promedios ni en las calificaciones.';
   var h='';
-  if(o) h+='<p class="control" style="margin:0 0 12px"><strong>Barrio / Objetivo:</strong> '+esc(o)+'</p>';
+  if(o) h+='<p class="control" style="margin:0 0 12px"><strong>Barrio:</strong> '+esc(o)+'</p>';
   if(!c.n){
     $('resumen').innerHTML=h+'<div class="aviso atencion">No hay meses cargados para este período. Subí los Excel de '+(R.tipo==='anual'?'los meses del año '+R.y:'los meses de '+TIPOS[R.tipo].rango[R.per].toLowerCase()+' de '+R.y)+' en la solapa 2, o elegí otro período.</div>';
     return;
@@ -1807,7 +1884,7 @@ function renderResumen(){
 function renderCalendario(){
   var V=evolucion(), o=objetivo();
   var pie=pieEvol(V);
-  $('calendario').innerHTML=(o?'<p class="control" style="margin:0 0 12px"><strong>Barrio / Objetivo:</strong> '+esc(o)+'</p>':'')+
+  $('calendario').innerHTML=(o?'<p class="control" style="margin:0 0 12px"><strong>Barrio:</strong> '+esc(o)+'</p>':'')+
     '<h3 class="cal-titulo">'+V.titulo+'</h3>'+tabla(TB.evol.cab,V.rows.map(TB.evol.fila),pie)+
     '<p class="control">'+LEY_CAL+'. Los meses sin datos no se consideran en los totales ni en las calificaciones.</p>';
 }
@@ -1835,7 +1912,7 @@ async function xlsx(wb,inc,X){
   if(inc.informe){
     var ws=wb.addWorksheet('Informe'), c=R.cur;
     ws.mergeCells('A1:L1'); ws.getCell('A1').value=R.titulo; ws.getCell('A1').font={bold:true,size:14};
-    ws.getCell('A2').value='Barrio / Objetivo: '+(o||'-'); ws.getCell('A2').font={bold:true};
+    ws.getCell('A2').value='Barrio: '+(o||'-'); ws.getCell('A2').font={bold:true};
     var r=4;
     if(!c.n){ ws.getCell('A4').value='No hay meses cargados para este período.'; }
     else{
@@ -1864,7 +1941,7 @@ async function xlsx(wb,inc,X){
   if(inc.evolucion){
     var V=evolucion(), w2=wb.addWorksheet('Evolución mensual');
     w2.mergeCells('A1:N1'); w2.getCell('A1').value=V.titulo; w2.getCell('A1').font={bold:true,size:14};
-    w2.getCell('A2').value='Barrio / Objetivo: '+(o||'-'); w2.getCell('A2').font={bold:true};
+    w2.getCell('A2').value='Barrio: '+(o||'-'); w2.getCell('A2').font={bold:true};
     var pie=pieEvol(V);
     var rr=escribirTabla(w2,4,TB.evol.cab,V.rows.map(TB.evol.fila),X,pie)+2;
     w2.getCell(rr,1).value=LEY_CAL+'. Los meses sin datos no se consideran en los totales ni en las calificaciones.'; w2.getCell(rr,1).font={italic:true,size:9};
@@ -1880,7 +1957,7 @@ function pdf(ctx,inc){
   function pag(titulo,sub){
     doc=ctx.nueva('landscape'); doc.setDrawColor(120,132,142); doc.setLineWidth(0.2);
     doc.setTextColor(28,42,53); doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.text(titulo,x0,15);
-    doc.setFontSize(9.5); doc.text('Barrio / Objetivo: '+(o||'-')+(sub?'   ·   '+sub:''),x0,21); y=26;
+    doc.setFontSize(9.5); doc.text('Barrio: '+(o||'-')+(sub?'   ·   '+sub:''),x0,21); y=26;
   }
   function rotulo(t){doc.setTextColor(28,42,53);doc.setFont('helvetica','bold');doc.setFontSize(10.5);doc.text(t,x0,y);y+=2.5;}
   function caja(x,yy,w,h,c,fs,gris){
